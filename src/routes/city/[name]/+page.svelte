@@ -4,7 +4,7 @@
     let date = '';
     let hour = 12;
 
-    const disabledInfo = 'Unavailable dates will be disabled later.';
+    const disabledInfo = '';
 </script>
 
 <h1 class="text-3xl font-bold mb-6">{pretty}</h1>

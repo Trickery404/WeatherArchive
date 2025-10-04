@@ -1,6 +1,6 @@
 <script lang="ts">
     let query = '';
-    const topics = ['Vienna', 'Berlin', 'Paris', 'London']; // statisch für den Draft
+    const topics = ['Vienna', 'Berlin', 'Paris', 'London'];
     $: suggestions = query
         ? topics.filter((t) => t.toLowerCase().startsWith(query.toLowerCase()))
         : [];
