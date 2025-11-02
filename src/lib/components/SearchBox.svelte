@@ -1,46 +1,52 @@
 <script lang="ts">
-	export let placeholder = 'Search city...';
-	export let suggestions: string[] = [];
-	export let value = '';
-	export let onSubmit: (q: string) => void;
+	import { createEventDispatcher } from 'svelte';
 
-	// two-way binding API
-	export { value as modelValue };
+	export let capitals: string[] = [];
+	export let placeholder = 'Search city...';
+	// <- Wert kommt vom Parent
+	export let value = '';
+
+	const dispatch = createEventDispatcher();
+	let error = '';
+
+	const slug = (s: string) => s.toLowerCase().replace(/\s+/g, '-');
+
+	function submit() {
+		const hit = capitals.find(
+			(c) => c.toLowerCase() === value.trim().toLowerCase()
+		);
+		if (hit) {
+			error = '';
+			dispatch('select', { city: hit, slug: slug(hit) });
+		} else {
+			error = 'Diese Stadt ist nicht in der Liste der Hauptstädte.';
+		}
+	}
+
+	function handleInput(e: Event) {
+		const v = (e.target as HTMLInputElement).value;
+		error = '';
+		dispatch('input', v);
+	}
 </script>
 
 <div class="w-full max-w-3xl">
 	<div class="flex gap-2">
 		<input
-			class="flex-1 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/40
-             px-5 py-4 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+			value={value}
+			on:input={handleInput}
+			on:keydown={(e) => e.key === 'Enter' && submit()}
 			{placeholder}
-			bind:value
-			on:keydown={(e) => e.key === 'Enter' && onSubmit?.(value)}
-			aria-label="Search city"
+			class="flex-1 rounded-xl border border-stone-300 bg-white px-5 py-4"
 		/>
-		<button
-			class="rounded-xl px-5 py-4 bg-black text-white hover:bg-zinc-900 focus:outline-none
-             focus:ring-2 focus:ring-cyan-500/60"
-			type="button"
-			on:click={() => onSubmit?.(value)}
-		>
+		<button type="button" on:click={submit} class="rounded-xl px-5 py-4 bg-black text-white">
 			Search
 		</button>
 	</div>
 
-	{#if value && suggestions.length}
-		<ul class="mt-2 rounded-xl border bg-white shadow-sm overflow-hidden">
-			{#each suggestions as s (s)}
-				<li>
-					<button
-						type="button"
-						class="w-full text-left px-4 py-2 hover:bg-gray-100"
-						on:click={() => (value = s)}
-					>
-						{s}
-					</button>
-				</li>
-			{/each}
-		</ul>
+	{#if error}
+		<p class="mt-2 text-sm text-red-500">{error}</p>
 	{/if}
 </div>
+
+
