@@ -37,6 +37,7 @@
 		"vite": "^7.1.12"
 	},
 	"dependencies": {
+		"chart.js": "^4.5.1",
 		"typescript-eslint": "^8.45.0"
 	}
 }

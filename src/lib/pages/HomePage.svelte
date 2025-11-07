@@ -17,7 +17,7 @@
 		? capitals.filter(c => c.toLowerCase().includes(query.toLowerCase()))
 		: capitals;
 
-	function handleSelect(e) {
+	function handleSelect(e: CustomEvent) {
 		goto(`/cities/${e.detail.slug}`);
 	}
 
