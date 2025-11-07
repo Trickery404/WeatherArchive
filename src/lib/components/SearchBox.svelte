@@ -3,7 +3,6 @@
 
 	export let capitals: string[] = [];
 	export let placeholder = 'Search city...';
-	// <- Wert kommt vom Parent
 	export let value = '';
 
 	const dispatch = createEventDispatcher();
@@ -19,7 +18,7 @@
 			error = '';
 			dispatch('select', { city: hit, slug: slug(hit) });
 		} else {
-			error = 'Diese Stadt ist nicht in der Liste der Hauptstädte.';
+			error = 'This input is not part of the list of capitals. Please try again.';
 		}
 	}
 

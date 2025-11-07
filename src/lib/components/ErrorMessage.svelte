@@ -1,5 +1,5 @@
 <script lang="ts">
-	export let title = 'Ups, da ist etwas schiefgelaufen.';
+	export let title = 'Oops, looks like something went wrong';
 	export let detail = '';
 </script>
 
