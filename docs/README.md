@@ -10,6 +10,7 @@ Web application that displays historical weather data through API endpoints usin
 - **Custom Date Picker** - Select from available dates with visual calendar
 - **Hourly Data** - Browse weather data by hour with slider control
 - **Modern UI** - Clean, responsive design with Tailwind CSS
+- **Static Hosting** - Optimized for S3 + optional CloudFront deployment
 
 ## Project Structure
 
@@ -49,6 +50,8 @@ Examples:
 - `berlin_2025-01-02_14.jpg`
 - `paris_2025-01-15_12.jpg`
 
+The City Detail page attempts to load `/images/{cityslug}_{date}_{hour}.jpg`. When a file is missing you will see a placeholder describing the expected filename.
+
 ## Requirements
 
 - Node.js (20+)
@@ -72,18 +75,28 @@ npm run preview
 
 Preview production build at [http://localhost:4173](http://localhost:4173)
 
-## Docker
+## Deployment (S3 + optional CloudFront)
 
-Build and run with Docker:
-```bash
-docker build -t weatherarchive .
-docker run -p 8080:80 weatherarchive
-```
+1. Build the static site:
+   ```bash
+   npm run build
+   ```
+2. Upload to the target bucket (example command):
+   ```bash
+   aws s3 sync build/ s3://weatherarchive-prod/ --delete
+   ```
+3. (Optional) Invalidate CloudFront to propagate changes:
+   ```bash
+   aws cloudfront create-invalidation --distribution-id <ID> --paths "/*"
+   ```
 
-Or use the build script:
-```bash
-build-docker-tar.cmd
-```
+You no longer need the previous NGINX container workflow; the output under `build/` is served directly from S3.
+
+## Documentation
+
+- `docs/ARC42.md` – architecture description aligned with the evaluation matrix
+- `docs/Evaluation_matrix_for_the_semester_project.md` – user stories and status
+- `docs/semester_project_serverless_computing_and_FAQs_2024.pdf` – course requirements
 
 ## IDE Recommendation (IntelliJ Ultimate)
 
@@ -123,6 +136,7 @@ npm run format
 - **Build Tool:** Vite
 - **Linting:** ESLint
 - **Formatting:** Prettier
+- **Hosting:** AWS S3 (+ CloudFront for CDN)
 
 ## TODO
 
