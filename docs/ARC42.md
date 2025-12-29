@@ -119,7 +119,6 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 
 # 6. Runtime View
 
-- TODO - Sequence-Diagrams
 - TODO -  Question: Do we need more scenarios? (eg. lambda calls, webcam api interactions...)
 
 ## 6.1 Scenario 1 – City Search and Navigation
