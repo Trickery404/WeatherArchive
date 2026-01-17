@@ -1,54 +1,127 @@
-# WeatherArchive
+# 📚 WeatherArchive - Dokumentations-Index
 
-Web application that displays historical weather data through API endpoints using **SvelteKit** and **Tailwind CSS**.
+Diese Dokumentation beschreibt die Architektur, API-Design und Backend-Implementierung des WeatherArchive-Projekts.
 
-## Features
+---
 
-- **City Search** - Search through European capital cities
-- **Weather Visualization** - Interactive charts showing temperature, humidity, and air pressure
-- **Image Display** - View weather images for specific dates and times
-- **Custom Date Picker** - Select from available dates with visual calendar
-- **Hourly Data** - Browse weather data by hour with slider control
-- **Modern UI** - Clean, responsive design with Tailwind CSS
-- **Static Hosting** - Optimized for S3 + optional CloudFront deployment
+## 🎯 Für Projekt-Abgabe
 
-## Project Structure
+### ⭐ Arc42 Architektur-Dokumentation
+**[ARC42.md](./ARC42.md)** - **HAUPTDOKUMENT FÜR ABGABE**
+
+Enthält:
+- 1. Introduction and Goals
+- 3. Context and Scope  
+- 4. Solution Strategy
+- 5. Building Block View
+- 9. Architecture Decisions
+
+### 📋 Projekt-Spezifikation
+- **[semester_project_serverless_computing_and_FAQs_2024.pdf](./semester_project_serverless_computing_and_FAQs_2024.pdf)** - Offizielle Aufgabenstellung
+- **[Evaluation_matrix_for_the_semester_project.md](./Evaluation_matrix_for_the_semester_project.md)** - Bewertungskriterien
+
+---
+
+## 🏗️ Backend-Dokumentation
+
+### Overview
+**[backend/00_overview.md](./backend/00_overview.md)** - Backend-Übersicht
+- Architektur
+- Lambda Functions
+- Services
+
+### API Design
+**[backend/api-design.md](./backend/api-design.md)** - REST API Spezifikation
+- Endpoints (GET/POST)
+- Request/Response Payloads
+- HTTP Status Codes
+- API Key Authentication
+
+### Lambda Functions
+**[backend/lambda-spec.md](./backend/lambda-spec.md)** - Lambda Function Details
+- Presign Lambda
+- Ingest Lambda
+- GetCityImages Lambda
+- ResizeWorker Lambda
+- RenderVideoWorker Lambda
+- CacheInvalidator Lambda
+
+### Event-Driven Architecture
+**[backend/event-flows.md](./backend/event-flows.md)** - Event Flows
+- S3 Events → Lambda Triggers
+- EventBridge Schedules
+- SQS Message Flows
+
+### Database
+**[backend/storage-db.md](./backend/storage-db.md)** - Database Schema
+- PostgreSQL Tables (cities, images)
+- Indexes
+- Relationships
+
+---
+
+## 📖 Weitere Dokumentation
+
+### Im Projekt-Root:
+- **[../README.md](../README.md)** - Haupt-README mit Quick Start
+- **[../AWS_ACADEMY_DEPLOYMENT.md](../AWS_ACADEMY_DEPLOYMENT.md)** - AWS Deployment Guide
+- **[../DEPLOYMENT_CHECKLIST.md](../DEPLOYMENT_CHECKLIST.md)** - Deployment Checkliste
+
+### Infrastructure:
+- **[../infra/README.md](../infra/README.md)** - CloudFormation Template Erklärung
+- **[../infra/postgres-schema.sql](../infra/postgres-schema.sql)** - PostgreSQL Schema
+- **[../infra/cloudformation.yml](../infra/cloudformation.yml)** - AWS Infrastructure as Code
+
+### Backend Code:
+- **[../src/backend/README.md](../src/backend/README.md)** - Code-Struktur
+- **[../src/backend/lambdas/](../src/backend/lambdas/)** - Lambda Source Code
+- **[../src/backend/adapters/](../src/backend/adapters/)** - Database/AWS Adapters
+
+---
+
+## 🎓 Dokumentations-Struktur
 
 ```
-src/
-├── lib/
-│   ├── components/
-│   │   ├── DatePicker.svelte      # Custom calendar component
-│   │   ├── ErrorMessage.svelte    # Error display component
-│   │   ├── Header.svelte          # Application header
-│   │   ├── SearchBox.svelte       # City search input
-│   │   └── WeatherPlot.svelte     # Chart.js weather visualization
-│   ├── pages/
-│   │   ├── CityDetailPage.svelte  # City weather detail page
-│   │   └── HomePage.svelte        # Main search page
-│   └── styles/
-│       └── app.css                # Global styles with Tailwind
-├── routes/
-│   ├── +layout.svelte             # Layout wrapper
-│   ├── +page.svelte               # Home route
-│   └── (app)/cities/[city]/
-│       └── +page.svelte           # Dynamic city route
-└── static/
-    ├── images/                    # Weather images (cityslug_YYYY-MM-DD_HH.jpg)
-    └── logo.png                   # Application logo
+docs/
+├── README.md                     ← Du bist hier
+├── ARC42.md                      ⭐ Hauptdokument für Abgabe
+├── *.pdf                         📋 Spezifikationen
+└── backend/
+    ├── 00_overview.md            🏗️ Backend Übersicht
+    ├── api-design.md             🔌 API Endpoints
+    ├── lambda-spec.md            ⚡ Lambda Functions
+    ├── event-flows.md            📨 Events & Triggers
+    ├── storage-db.md             🗄️ Database Schema
+    └── schemas/                  📝 JSON Schemas
+        ├── ingest-notification.schema.json
+        ├── metadata.schema.json
+        ├── render-job.schema.json
+        └── resize-job.schema.json
 ```
 
-## Image Naming Convention
+---
 
-Place weather images in `static/images/` with the following format:
-```
-{cityslug}_{YYYY-MM-DD}_{HH}.jpg
-```
+## 📝 Hinweise
 
-Examples:
-- `vienna_2025-01-01_08.jpg`
-- `berlin_2025-01-02_14.jpg`
-- `paris_2025-01-15_12.jpg`
+### Für Entwickler:
+- **Quick Start:** Siehe Haupt-README
+- **API testen:** Siehe `backend/api-design.md`
+- **Lambda entwickeln:** Siehe `backend/lambda-spec.md`
+
+### Für Reviewer:
+- **Start:** `ARC42.md` lesen
+- **Details:** Backend-Dokumentation durchgehen
+- **Code:** `../src/backend/` anschauen
+
+### Für Deployment:
+- **Guide:** `../AWS_ACADEMY_DEPLOYMENT.md`
+- **Checkliste:** `../DEPLOYMENT_CHECKLIST.md`
+- **Infrastructure:** `../infra/cloudformation.yml`
+
+---
+
+**📖 START: [ARC42.md](./ARC42.md) - Architektur-Dokumentation**
+
 
 The City Detail page attempts to load `/images/{cityslug}_{date}_{hour}.jpg`. When a file is missing you will see a placeholder describing the expected filename.
 
