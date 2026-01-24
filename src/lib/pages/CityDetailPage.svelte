@@ -229,7 +229,7 @@
 			<div class="text-sm text-stone-600 mt-1 flex justify-between">
 				<span>Selected: {hour}:00</span>
 				{#if hasDataForHour}
-					<span class="text-green-600 font-medium">✓ Data available</span>
+					<span class="text-green-600 font-medium">[OK] Data available</span>
 				{/if}
 			</div>
 		</div>

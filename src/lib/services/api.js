@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Service for WeatherArchive Frontend
  * Handles all backend communication with proper error handling
  */
@@ -250,3 +250,4 @@ export async function healthCheck() {
 		return { status: 'error', message: error.message };
 	}
 }
+

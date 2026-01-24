@@ -18,7 +18,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"generate:testdata": "node docs/backend/testdata/generate-testdata.js",
-		"generate:images": "node scripts/generate-unique-images.js"
+		"generate:images": "node scripts/generate-unique-images.js",
+		"deploy": "npm run build && aws s3 sync build/ s3://weatherarchivebucket/ --delete"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",
@@ -50,6 +51,7 @@
 		"@aws-sdk/client-sqs": "^3.712.0",
 		"@aws-sdk/s3-request-presigner": "^3.712.0",
 		"chart.js": "^4.5.1",
+		"dotenv": "^17.2.3",
 		"fluent-ffmpeg": "^2.1.3",
 		"ioredis": "^5.4.1",
 		"pg": "^8.17.1",

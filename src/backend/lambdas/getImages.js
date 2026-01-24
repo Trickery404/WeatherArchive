@@ -1,119 +1,144 @@
-import { successResponse, errorResponse } from './apiGatewayHelpers.js';
-import { getAdapters } from '../adapters/index.js';
+import 'dotenv/config';
+import { getOrSet } from '../lib/redis-helper.js';
+import pkg from 'pg';
+const { Client } = pkg;
 
-const { db, s3, cache } = getAdapters();
+const PG_CONFIG = {
+	host: process.env.PG_HOST,
+	database: process.env.PG_DB,
+	user: process.env.PG_USER,
+	password: process.env.PG_PASSWORD,
+	port: 5432,
+	ssl: { rejectUnauthorized: false }
+};
 
 /**
- * Get Images Handler
- * Returns all images with optional filtering
- * Uses Redis cache with PostgreSQL fallback
+ * Lambda Handler for getImages
+ * User Stories 16-22: Retrieve images with Redis cache-first strategy
+ * @param {Object} event - API Gateway event
+ * @returns {Promise<Object>} Response with images list
  */
-export async function handler(event) {
-	console.log('getImages handler called');
+export const handler = async (event) => {
+	console.log('[getImages] Handler called');
+	console.log('[getImages] Event:', JSON.stringify(event, null, 2));
 
 	try {
+		// Extract parameters
+		const pathParams = event.pathParameters || {};
 		const queryParams = event.queryStringParameters || {};
-		const { city, from, to, limit = '50', offset = '0' } = queryParams;
 
-		// Build cache key
-		const cacheKey = `images:${city || 'all'}:${from || ''}:${to || ''}:${limit}:${offset}`;
-		const CACHE_TTL = 300; // 5 minutes
+		const citySlug = pathParams.city || queryParams.city;
+		const date = queryParams.date;
+		const hour = queryParams.hour;
 
-		// Try cache first
-		if (cache) {
-			try {
-				const cached = await cache.get(cacheKey);
-				if (cached) {
-					console.log('Images found in cache');
-					return successResponse({ ...JSON.parse(cached), cached: true });
+		// Validate city
+		if (!citySlug) {
+			return {
+				statusCode: 400,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*'
+				},
+				body: JSON.stringify({
+					error: 'Missing required parameter: city'
+				})
+			};
+		}
+
+		// Build cache key based on query parameters
+		let cacheKey = `city:${citySlug}:images`;
+		if (date) cacheKey += `:${date}`;
+		if (hour) cacheKey += `:${hour}`;
+
+		console.log(`[getImages] Cache key: ${cacheKey}`);
+
+		// Use cache-first strategy (User Stories 20-22)
+		const images = await getOrSet(
+			cacheKey,
+			async () => {
+				console.log('[getImages] Cache miss - fetching from PostgreSQL');
+
+				const client = new Client(PG_CONFIG);
+				await client.connect();
+
+				// Build dynamic query based on filters
+				let query = `
+					SELECT 
+						i.id,
+						i.city_slug,
+						i.capture_time,
+						i.camera_id,
+						i.s3_bucket,
+						i.s3_key,
+						i.s3_key_processed,
+						i.temperature,
+						i.humidity,
+						i.air_pressure,
+						i.processed,
+						i.used_in_video,
+						i.created_at
+					FROM images i
+					WHERE i.city_slug = $1
+				`;
+
+				const params = [citySlug];
+				let paramIndex = 2;
+
+				// Add date filter if provided
+				if (date) {
+					query += ` AND DATE(i.capture_time) = $${paramIndex}`;
+					params.push(date);
+					paramIndex++;
 				}
-			} catch (cacheError) {
-				console.warn('Cache error, falling back to DB:', cacheError);
-			}
-		}
 
-		// Build SQL query
-		let query = `
-      SELECT 
-        i.id, i.image_key, i.captured_at, i.temperature, i.humidity, i.pressure, i.weather_condition,
-        c.name as city_name, c.slug as city_slug, c.country
-      FROM images i
-      JOIN cities c ON i.city_id = c.id
-    `;
-		const params = [];
-		const conditions = [];
-		let paramCount = 1;
-
-		if (city) {
-			conditions.push(`c.slug = $${paramCount++}`);
-			params.push(city);
-		}
-
-		if (from) {
-			conditions.push(`i.captured_at >= $${paramCount++}`);
-			params.push(from);
-		}
-
-		if (to) {
-			conditions.push(`i.captured_at <= $${paramCount++}`);
-			params.push(to);
-		}
-
-		if (conditions.length > 0) {
-			query += ' WHERE ' + conditions.join(' AND ');
-		}
-
-		query += ` ORDER BY i.captured_at DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
-		params.push(parseInt(limit), parseInt(offset));
-
-		const result = await db.query(query, params);
-
-		const images = result.rows.map((row) => ({
-			id: row.id,
-			imageKey: row.image_key,
-			capturedAt: row.captured_at,
-			temperature: row.temperature,
-			humidity: row.humidity,
-			pressure: row.pressure,
-			weatherCondition: row.weather_condition,
-			city: {
-				name: row.city_name,
-				slug: row.city_slug,
-				country: row.country
-			}
-		}));
-
-		// Generate presigned URLs for images
-		if (s3) {
-			for (const image of images) {
-				try {
-					image.url = await s3.getPresignedUrl(image.imageKey, 3600);
-				} catch (error) {
-					console.warn(`Failed to generate URL for ${image.imageKey}:`, error);
-					image.url = null;
+				// Add hour filter if provided
+				if (hour !== undefined) {
+					query += ` AND EXTRACT(HOUR FROM i.capture_time) = $${paramIndex}`;
+					params.push(parseInt(hour));
+					paramIndex++;
 				}
-			}
-		}
 
-		const response = {
-			images,
-			count: images.length,
-			limit: parseInt(limit),
-			offset: parseInt(offset)
+				query += ` ORDER BY i.capture_time DESC LIMIT 100`;
+
+				// language=PostgreSQL
+				const result = await client.query(query, params);
+
+				await client.end();
+
+				console.log(`[getImages] Retrieved ${result.rows.length} images from DB`);
+				return result.rows;
+			},
+			3600 // Cache for 1 hour
+		);
+
+		return {
+			statusCode: 200,
+			headers: {
+				'Content-Type': 'application/json',
+				'Access-Control-Allow-Origin': '*'
+			},
+			body: JSON.stringify({
+				city: citySlug,
+				date: date || null,
+				hour: hour || null,
+				images,
+				count: images.length,
+				cached: true
+			})
 		};
-
-		// Cache the result
-		if (cache && images.length > 0) {
-			try {
-				await cache.set(cacheKey, JSON.stringify(response), CACHE_TTL);
-			} catch (cacheError) {
-				console.warn('Failed to cache images:', cacheError);
-			}
-		}
-
-		return successResponse({ ...response, cached: false });
 	} catch (error) {
-		console.error('Error fetching images:', error);
-		return errorResponse(500, 'Failed to fetch images', error.message);
+		console.error('[getImages] Error:', error);
+
+		return {
+			statusCode: 500,
+			headers: {
+				'Content-Type': 'application/json',
+				'Access-Control-Allow-Origin': '*'
+			},
+			body: JSON.stringify({
+				error: 'Failed to retrieve images',
+				message: error.message
+			})
+		};
 	}
-}
+};

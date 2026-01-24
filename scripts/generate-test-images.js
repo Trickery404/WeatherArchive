@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -11,7 +11,7 @@ const MINIMAL_JPEG_BASE64 =
 
 const CITIES = ['vienna', 'berlin', 'paris', 'london', 'rome', 'madrid', 'amsterdam', 'brussels'];
 
-// Aktuelles Datum und die nächsten 7 Tage
+// Aktuelles Datum und die nchsten 7 Tage
 const today = new Date();
 const dates = [];
 for (let i = 0; i < 7; i++) {
@@ -45,8 +45,9 @@ CITIES.forEach((city) => {
 	});
 });
 
-console.log(`✅ Generated ${count} test images`);
-console.log(`📁 Location: ${outputDir}`);
-console.log(`📅 Dates: ${dates[0]} to ${dates[dates.length - 1]}`);
-console.log(`🕐 Hours: ${hours[0]}:00 to ${hours[hours.length - 1]}:00`);
-console.log(`🌍 Cities: ${CITIES.join(', ')}`);
+console.log(` Generated ${count} test images`);
+console.log(` Location: ${outputDir}`);
+console.log(` Dates: ${dates[0]} to ${dates[dates.length - 1]}`);
+console.log(` Hours: ${hours[0]}:00 to ${hours[hours.length - 1]}:00`);
+console.log(` Cities: ${CITIES.join(', ')}`);
+

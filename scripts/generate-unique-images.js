@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
@@ -25,7 +25,7 @@ if (!fs.existsSync(outputDir)) {
 
 let count = 0;
 
-console.log('🎨 Generiere einzigartige Testbilder...\n');
+console.log(' Generiere einzigartige Testbilder...\n');
 
 async function generateImages() {
 	for (const city of CITIES) {
@@ -67,14 +67,15 @@ async function generateImages() {
 		}
 	}
 
-	console.log(`\n✅ Generated ${count} unique test images`);
-	console.log(`📁 Location: ${outputDir}`);
-	console.log(`📅 Dates: ${dates[0]} to ${dates[dates.length - 1]}`);
-	console.log(`🕐 Hours: ${hours[0]}:00 to ${hours[hours.length - 1]}:00`);
-	console.log(`🌍 Cities: ${CITIES.join(', ')}`);
+	console.log(`\n Generated ${count} unique test images`);
+	console.log(` Location: ${outputDir}`);
+	console.log(` Dates: ${dates[0]} to ${dates[dates.length - 1]}`);
+	console.log(` Hours: ${hours[0]}:00 to ${hours[hours.length - 1]}:00`);
+	console.log(` Cities: ${CITIES.join(', ')}`);
 }
 
 generateImages().catch((error) => {
-	console.error('❌ Error:', error);
+	console.error(' Error:', error);
 	process.exit(1);
 });
+

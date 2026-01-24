@@ -1,5 +1,8 @@
 # IDE/Editor
 .idea/
+!.idea/dataSources.xml
+!.idea/sqldialects.xml
+!.idea/dataSources/
 *.iml
 .vscode/
 

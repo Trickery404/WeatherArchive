@@ -1,13 +1,13 @@
-# 1. Introduction and Goals
+﻿# 1. Introduction and Goals
 
 ## 1.1 Requirements Overview
 
 The WeatherArchive frontend fulfills the user facing backlog from the Semester Project Specification and the evaluation matrix:
 
-- **Search & Navigation (Stories 1–5)**: landing page with logo, guided search bar, autocomplete restricted to curated cities, and routing to the city detail page.
-- **Observation Experience (Stories 6–10)**: detail page combines hero media slot for images, interactive chart, date picker, hour slider, and contextual error handling.
-- **Data Ingestion & API (Stories 11–30)**: currently scoped as future backend services (webcam ingestion, API security, storage, video creation). They are documented as planned interfaces and constraints.
-- **Non-functional Deliverables (Stories 31–35)**: arc42 documentation, presentation, frontend draft, and code quality practices captured in this document and the repository tooling.
+- **Search & Navigation (Stories 15)**: landing page with logo, guided search bar, autocomplete restricted to curated cities, and routing to the city detail page.
+- **Observation Experience (Stories 610)**: detail page combines hero media slot for images, interactive chart, date picker, hour slider, and contextual error handling.
+- **Data Ingestion & API (Stories 1130)**: currently scoped as future backend services (webcam ingestion, API security, storage, video creation). They are documented as planned interfaces and constraints.
+- **Non-functional Deliverables (Stories 3135)**: arc42 documentation, presentation, frontend draft, and code quality practices captured in this document and the repository tooling.
 
 ## 1.2 Quality Goals
 
@@ -16,7 +16,7 @@ The WeatherArchive frontend fulfills the user facing backlog from the Semester P
 | Q1 | Fast perception | Search and navigation respond in <300 ms locally; image loads provide feedback so users perceive responsiveness even when assets are missing. |
 | Q2 | Reliable data access | Date/hour controls never allow unavailable combinations; optimistic UI always communicates when data or media cannot be displayed. |
 | Q3 | Deployable artifact | `npm run build` must produce a deterministic static bundle that can be synced to S3/CloudFront without manual tweaks. |
-| Q4 | Evolvable backend | Frontend isolates backend calls behind fetch utilities so upcoming API increments (stories 11–30) can be integrated without refactors. |
+| Q4 | Evolvable backend | Frontend isolates backend calls behind fetch utilities so upcoming API increments (stories 1130) can be integrated without refactors. |
 
 ## 1.3 Stakeholders
 
@@ -29,99 +29,117 @@ The WeatherArchive frontend fulfills the user facing backlog from the Semester P
 
 # 2. Architecture Constraints
 
-- **Technology**: SvelteKit + Vite, Tailwind CSS, Chart.js, TypeScript per specification.
+- **Technology**: SvelteKit + Vite, Tailwind CSS, Chart.js, TypeScript, AWS (Lambdas, Cloudfront, S3).
 - **Tooling**: Node.js 20+, npm, ESLint/Prettier enforced by CI instructions.
-- **Deployment**: Static assets uploaded to an AWS S3 bucket (optionally fronted by CloudFront) instead of the former NGINX container image.
-- **Assets**: Weather images stored under `static/images` with naming convention `{cityslug}_{YYYY-MM-DD}_{HH}.jpg` to satisfy evaluation matrix story 6.
-- **Security**: Future API endpoints must require API keys (stories 12, 13) and integrate with AWS credential handling.
+- **Deployment**: Static assets uploaded to an AWS S3 bucket with Cloudfront.
+- **Assets**: Weather images and videos are stored in their respective S3 buckets `lambda/store_image/` with naming convention `{cityslug}_{YYYY-MM-DD}_{HH}.jpg`.
+- **Security**: Backend Service is secured through API keys.
 
 # 3. Context and Scope
 
 ## 3.1 Business Context
 
-| Actor | Interaction | Notes |
-| --- | --- | --- |
-| Viewer | Uses browser UI to search cities and inspect historical weather slices. | Inspired by Google-like UX (stories 1–5). |
-| Webcam Device | Planned to POST images + metadata to backend. | Awaiting API implementation (stories 11–15). |
-| API / Data Services | Serve curated weather data, metadata, and media references. | Interfaces defined in spec; currently mocked in frontend. |
+| Actor  | Interaction |
+|--------| --- |
+| User   | Uses browser UI to search cities and inspect historical weather slices.|
+| Webcam | Planned to POST images + metadata to backend.|
+| Lambda | Serve curated weather data, metadata, and media references.|
 
 ## 3.2 Technical Context
 
-| External System | Technology                             | Interface                                     |
-| --- |----------------------------------------|-----------------------------------------------|
-| Browser | HTML5, JS, CSS                         | SvelteKit routes, static assets, fetch calls. |
-| Backend API (planned) | REST/JSON over HTTPS, Lambda Functions | `/api/events`, `/api/weather` (per spec).     |
-| Object Storage | AWS S3 (planned)                       | Stores images/videos, accessed via signed URLs. |
-| Redis Cache | AWS ElastiCache (planned)              | Reduces database hits for repeated queries.   |
-| Database | RDS Postgres                           | Stores meta data                              |
+| External System | Technology                                  | Interface                                                           |
+|-----------------|---------------------------------------------|---------------------------------------------------------------------|
+| Browser         | HTML5, JS, CSS                              | SvelteKit routes, static assets, fetch calls.                       |
+| API Gateway     | REST/JSON over HTTPS, calls Lambda Functions | `/api/events`, `/api/weather` (per spec).                           |
+| Object Storage  | Three AWS S3 buckets                        | Stores images, resized images and videos. |
+| Redis Cache     | AWS ElastiCache                     | Reduces database hits for repeated queries.                         |
+| Database        | RDS Postgres                                | Stores meta data                                                    |
 
 
 # 4. Solution Strategy
 
-1. **Frontend-first**: deliver all user-visible stories with static mocks to satisfy evaluation checkpoints while backend matures.
-2. **Deterministic builds**: Vite build output stays static so `aws s3 sync build/ s3://bucket` reproduces the site identically on each deployment.
-3. **Progressive enhancement**: UI controls work offline with mock data but expose clear extension points for live API integration.
-4. **Asset fallback**: Image loader displays skeletons and descriptive failure panels when files are absent, aligning with quality goal Q2.
+**1. Serverless backend on AWS**\
+Core backend functionality (ingestion, querying, image processing, video generation) is implemented using AWS Lambda, API Gateway, S3, RDS (PostgreSQL) and Redis.
+(Details: Sections 5, 7, 8)
+
+**2. API Gateway as single entry point**\
+All external webcams go through a API Gateway, which performs routing and API-key validations.
+(Details: Sections 5, 8)
+
+**3. Event-driven media processing**\
+Image resizing and video generation are triggered asynchronously using event triggers after data ingestion.(Details: Sections 5, 6)
+
+**Separation of metadata and binary data**\
+Weather metadata is stored in PostgreSQL, while images and videos are stored in multiple S3 Buckets.
+(Details: Sections 5, 8)
+**Cache-first data access**\
+Frequently requested weather data (topic + time range) is cached in Redis before accessing the database.
+(Details: Sections 5, 8)
+
+**Frontend, backend-driven logic**\
+The web application focuses on search, selection, and visualization, while all business logic resides in backend services.
+(Details: Sections 5, 6)
 
 # 5. Building Block View
 
-## 5.1 Whitebox Overall System
+## 5.1 System Overview
 
-![Whitebox Diagram](https://www.plantuml.com/plantuml/png/LP5DQ-Cm48Rl-XL33iikIpRtFPJGvD122w6XvDBBL1viDVemC-CceVI_Lv5JfxgPn-ypyqfQYYBh4BoHlOizCWQmAVGfKjIjdZm1arMChITZr6a6kyuflQRZVxZbT11YUButfaUxnvPWTeKpG9ao7mQkas5sbmB19WilyRSGiks0ZZsnesZfJp7FaLfQEJt1cXITBsw9dM4TUqg3kjWk7l2Klq0wyhv4Hs3gz2Cr3lEuI3vtSI7FNRoxXXA8JpfMAPaIgTqTeNR4cnpCxgf3rdzlCZe__jNI6fKspkw9uLS-vC2mzNaVZwT9KJbvgPMjeWu21zUqf99N1L9sLk0l11B1bkHITEGcw-MovlERkln4wteJdlPVsJJqqvZlryoul4y5pa85BlUzfDWCmNy1)
+![Whitebox Diagram](https://www.plantuml.com/plantuml/dpng/VPD1Rzf048Nl-oj6EIMgeggGKmzL81Y4H1M2ALoGgi4xDQlQwtHt3Kgh_lUEFTXWIdl3Ez--zvYPVVG1NIZpJ6NqBK0em9bq5q0RHqamXLKAar0uMDCsmVpuySMJKweYqAOPmGrNOUYA0vzlxEtO5JQGrH3F1tStW1x6KGSVh6DuoefIty0lfG3EI_CfJ33G0T_gc_mzMLymCyot6ZSsvYmqpJ6b6frzk8wzbEJUreHXHsw40GNkNOVd9WcbevZStYG4jmlovYT1xN8dD_lNRwwCfc92bXnoBa4V5BEQFRVe6LsCOdOeV4ZPuMMsiPyfe6uYSRMhl21jF3nXiYC1ej6qGZphOyf0t8TXcNodiB4BF4X8NwDn_-jYiFu76saJI5_WhBsypii_Qy7LT1GzTuD6Ux9Xw8nEYQV2SNMPaRGWMYtLRwLaVU3-_fDC53x2_3bUWgaom3l8ZurGuwW3JQ8Zuz_lwnJdh1AAUPuzmrLs0eU7lsJFoHwJFwgLKDKQLsVrUh92zLCQnqWhqrHuF7pSA8AnILPgOzCpmrVUCRYD-z9Qo8e4gpTqfqHL_Fki4fn9KpPtzNOfFkDICmMkoxaMsQOi0SfNjgTJZeDXJvA9db8enOqNluUgCp8JHkekGYfhojaKro-zKNS4_OcHuJUj5Z6f_ZUUc4ekxdzBonnQM6hTBDmfsbCRf7SHf2N4eo7agN0vuSV3CrAFP7MPPty0)
 
 
-- **Motivation**: Keep frontend modular so each user story maps to a component (search, detail, error handling) and future backend calls are centralized.
-- **Contained Building Blocks**:
-  - `src/lib/pages/HomePage.svelte`: autocomplete search, navigation logic.
-  - `src/lib/pages/CityDetailPage.svelte`: orchestrates image selection, weather widgets.
-  - `src/lib/components/*`: reusable UI controls (Header, DatePicker, WeatherPlot, SearchBox, ErrorMessage).
-  - `static/images/*`: weather media catalog.
-- **Important Interfaces**: Component props/events, SvelteKit routing (`/`, `/cities/[city]`), fetch adapters (future work).
-
-### 5.1.1 Home Page Module
-- **Responsibility**: Provide search UX, filter curated capitals, navigate to detail route.
-- **Interfaces**: Emits `select` events to `goto()`, consumes static capital list.
-- **Location**: `src/lib/pages/HomePage.svelte`.
-- **Fulfilled Stories**: 1–5.
-
-### 5.1.2 City Detail Module
-- **Responsibility**: Combine media viewer, chart, date/hour controls, and error states.
-- **Interfaces**: Binds to DatePicker events, slider input, image load events.
-- **Location**: `src/lib/pages/CityDetailPage.svelte`.
-- **Fulfilled Stories**: 6–10.
-- **Open Issues**: Needs live data provider (stories 11–30).
-
-### 5.1.3 WeatherPlot Component
-- **Responsibility**: Render multi-axis chart for temperature/humidity/pressure.
-- **Interfaces**: Chart.js config with placeholder data.
-- **Location**: `src/lib/components/WeatherPlot.svelte`.
-- **Fulfilled Stories**: Part of story 6.
-- **Risks**: Replace mock data once backend endpoints stabilize.
-
-### 5.1.4 DatePicker Component
-- **Responsibility**: Display selectable dates with availability constraints.
-- **Interfaces**: `availableDates`, `minDate`, `maxDate`, emits `change`.
-- **Location**: `src/lib/components/DatePicker.svelte`.
-- **Fulfilled Stories**: 7, 8.
+| Building Block                   | Purpose / Responsibility                                                                              | Interfaces                           | Notes / Dependencies                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| **API Gateway**                  | Entry point for all incoming requests. Receives image uploads from webcams and queries from frontend. | HTTP REST API                        | Routes requests to Lambda functions.                                    |
+| **StoreImage Lambda (L1)**       | Handles storage of raw images in S3 and metadata in RDS.                                              | Invoked by API Gateway               | Triggers PictureService Lambda on new S3 uploads.                       |
+| **PictureService Lambda (L3)**   | Resizes images and stores edited images in S3. Updates metadata in RDS.                               | Triggered by S3 events               | Can scale independently per image.                                      |
+| **VideoGenerator Lambda (L4)**   | Generates videos from edited images and stores them in S3. Updates metadata.                          | Triggered by EventBridge (scheduled) | Optional metadata update ensures traceability.                          |
+| **QueryWeatherData Lambda (L2)** | Handles frontend requests for images, videos, and metadata.                                           | Invoked by API Gateway               | Uses Redis cache for performance (optional).                            |
+| **RDS PostgreSQL**               | Stores metadata about images, edited images, and videos.                                              | SQL interface                        | Maintains relationships between raw images, resized images, and videos. |
+| **S3 Buckets**                   | Store raw images, edited images, and videos.                                                          | S3 API                               | Separate buckets for organization and lifecycle management.             |
+| **EventBridge Scheduler**        | Triggers periodic Lambda functions (e.g., VideoGenerator).                                            | EventBridge schedule                 | Optional cron-based scheduling.                                         |
+| **Redis Cache (optional)**       | Caches query results for performance.                                                                 | Redis interface                      | Helps reduce repeated S3/RDS queries.                                   |
+| **Web Browser (Frontend SPA)**   | Displays images, videos, and metadata to users.                                                       | REST API to QueryWeatherData         | Single-page application using modern JS framework.                      |
 
 ## 5.2 Level 2
+![Whitebox Diagram](https://www.plantuml.com/plantuml/dpng/XPJFRjim3CRlVWgYbwOOYg59JpqC_HCt292XQPmrbm23Qh6EC5lk93b1D-pTHzE2QciDvfl07_bzb4XVMoUCQweoAV75WQl1g6BdG2g3kLErJXAHkzh01fzpKVd3DuicILf2wA94EA4et9hwOD5izUZUrDgXbf0jRyvEG5YuJmVupIQ3kx9kv0dyJXA0VcWvXvbmU11ld4ddsIPY5g9wbcAhC_A2yqeK2AF5HQUqkA2IG9-k7NRDy17W75QOezgZ1SKvBwQkeASNEAvhmOY39vM6R08hEhEQZSaAdP32YHPSJJCOAPsNZLIwQFDUXTkTXPGrUIhGM5Ygt3K6CpHxbIDqJJ66Mh9zElmvqlfZW-PjWrGPpRHL7Yt6_WB67sT4SgCLMlKBkuREA7tYqoSVfpyfYVKCDHf1FHD_wVdBrc7R_BEmn5Fxf5LRLv3MusAhl_gxOPgYm_8hbCh2dSXts07fTDuYbaH4GG3TtssJ_q2trU_tpsWs-RwwsHnXKwaSoWYdskiZFBSNmAVvD7qO6attgDsjKR906ZooAviI3IUaJ-k4tkcKrmAKTcW4xuvDkgs1y_CltI335ImVihKVgqzXS9BxT03DKi_OptjsrcTPXcZUgjF-18FpmvLm8OPe8QwuPUI1ZfNxv9Z8d-rWjMLxozND0BoKjE09rIFOt_w_fNsSry07WnQC3ihjtbU2QtZj2T7UFHWUJJ8HxKXaPCAP_bs3M9SiEpSC1JVDAxdesM4to9FIuUohrOscVQ1BpzrPlcmr_IH8u7U2WdFunqdneJ-3GWxah6V2o8Kck1X5_sUUkU0w_Yb4zpKErVmpXs8SYxmwet2FmUWuDXe8zX08Nc0AvxJIIXV0vQzHowOg_m80)
 
-Detailed structure of City Detail Page:
-- **MediaLoader**: encapsulated logic in `CityDetailPage.svelte` for deriving filenames, handling load/error, and showing placeholders.
-- **ControlsPanel**: `DatePicker` + slider combination ensures only valid hours.
-- **MetricsPanel**: summary cards for temperature, humidity, pressure (currently derived from mock object).
+**Purpose / Responsibility:**
+* Receives image uploads from API Gateway.
+* Stores raw image in S3 (Raw Images bucket).
+* Stores metadata in RDS, including reference to the raw image in S3.
+* Triggers PictureService Lambda via S3 event.
 
-![Whitebox Diagram](https://www.plantuml.com/plantuml/png/VP51xzCm3CNl-HJMZg32dGEQn0uWWLHf1yuczTPeJbmvpb2_FMa5BDca_sNQy_lrsQyzPaEr4jbPC2Ru4cmzaM7W4Qy40tnBHfgGuMnQl1KbbsyXBQWOmKjS956oiwrCeEGDqvN9kVyE7Fh83_bER7G0pD0xxJC_Q0huNN0YtSb6Tz6IJ8NpY8bu1xj9dsWQV4EsWnOyeT4O_EtlveTieQzIzCpXttaFsK8_2Mqc7LbifnhjtFEB7Zvt9L_jfsglGD_8TVZcjrLUpQQ2QuCsixyyYH5ekCu6SkcE7g3-XZjbk0IcX95odSsO9guphj17KfKDpBFyph0mUfg59zBiA4smPJzlw7iFu2N-2edQJmFl8U-tLvjIBbfTIRp27UiOPYblvBTjjyjAZAWhUDIf5X7zv03UWL5SID6Aqgxd4iCKRDt5efIthOyTn_glHFu3)
+**Interface(s):**
+* Input: JSON payload from API Gateway containing:
+* Image file (binary or base64)
+* Webcam ID
+* Timestamp
+* Optional tags/metadata
+* Output: HTTP response (status code, image ID).
 
-## 5.3 Level 3
+**Quality / Performance Characteristics:**
+* High availability, stateless.
+* Scales automatically with AWS Lambda concurrency.
+* Ensures metadata consistency with raw S3 image.
 
-Lower-level elements (e.g., slider, error card) rely on native HTML inputs and Tailwind classes.
+**Directory/File Location (optional):**
+```
+lambda/store_image/
+```
+**Fulfilled Requirements:**
+* Raw image persistence
+* Metadata storage
+* Integration with resize workflow
+
+**Open Issues / Risks:**
+* Handling large image uploads may require multipart upload to S3.
+* Ensuring atomicity: metadata must not exist without a corresponding raw image.
 
 # 6. Runtime View
 
 - TODO -  Question: Do we need more scenarios? (eg. lambda calls, webcam api interactions...)
 
-## 6.1 Scenario 1 – City Search and Navigation
+## 6.1 Scenario 1  City Search and Navigation
 1. User enters a string on `/`.
 2. `HomePage` filters capitals and renders the suggestion list.
 3. On selection or enter, SvelteKit `goto` pushes `/cities/<slug>`.
@@ -129,7 +147,7 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 
 ![Whitebox Diagram](https://www.plantuml.com/plantuml/png/NP912jim44NtEiNWbRC8fbjJGY2q119AYUckcwazLGOKoPN60UzwXzwm9wcKQKoSbMtzDrz_FjudmIZJpHbXSGHTJnuZ1_W0Vt__WGFB31rXxA-0Ve0lU6UBmi4RWxs42DyIHJDc3-vvH2zG7SEDlg8bg9jD1PYW7AoH0uuiw3wp4uhVVSq-yK3mdDGnLTU3tPtouOa5Bc7AwWFKrpLOWXUhRDxqB4of-PZSP7Vg_PJNGsUSirKUEH8E59jpi45vLOmfsy9szqZQmYSl525fFKaYUskAKWXDtyBFn_F_mgd-DL6SDqPLs2vMYj40ZfCi9kMw5YxaXtBFP2sbqhr2Rs4wSjJBAnKYZ95IqfoBgTRLWWqIwchTJhKnHlLCBYsrS0uuG2Pd6FFt2wB5j70Y6k6gjRbS6zmvyGz7nZnDOFksaFeDA6Zs-I3_W_y0)
 
-## 6.2 Scenario 2 – Date & Hour Selection with Media Feedback
+## 6.2 Scenario 2  Date & Hour Selection with Media Feedback
 1. User selects a date via `DatePicker`; component dispatches `change` event.
 2. City page validates date against `availableDates` and updates the bound slider range.
 3. When hour changes, the computed `imagePath` updates; `<img>` begins loading.
@@ -144,12 +162,23 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 ## 7.1 Infrastructure Level 1
 - **Motivation**: Provide reproducible deployments for grading and AWS hosting.
 - **Quality Attributes**: Immutable artifacts, quick propagation through AWS edge caches, minimal ops steps.
-- **Mapping**: `npm run build` creates the static `build/` folder; the output is uploaded to an AWS S3 bucket (e.g., `weatherarchive-prod`) and optionally distributed via CloudFront. No container runtime is required.
+- **Mapping**: `npm run build` creates the static `build/` folder; the output is uploaded to an AWS S3 bucket (`weatherarchive`) and distributed via CloudFront. No container runtime is required.
 
 ## 7.2 Infrastructure Level 2
-- **Local Dev**: `npm run dev` with Vite’s hot module reload.
-- **Artifact Publishing**: `npm run build` followed by `aws s3 sync build/ s3://<bucket-name>/ --delete` (or CI equivalent) to update the website. (PLANNED)
-- **AWS Hosting**: S3 static website hosting serves the SPA (Single Page Application), CloudFront handles HTTPS/CDN, and future APIs live behind API Gateway + Lambda + RDS/Redis per spec.
+- **Local Dev**: `npm run dev` with Vites Hot Module Reload.
+- **Artifact Publishing**: 
+```
+npm run build
+aws s3 sync build/ s3://weatherarchivebucket/ --delete
+```
+
+- **AWS Hosting**: 
+Frontend: S3 Static Website Hosting (http://weatherarchivebucket.s3-website-us-east-1.amazonaws.com)
+Bucket: weatherarchivebucket (Region us-east-1)
+Block Public Access: deaktiviert
+Bucket Policy: Öffentlicher Lesezugriff (s3:GetObject für Principal: "*")
+Index/Error Document: index.html
+Backend APIs: API Gateway + Lambda + RDS/Redis (geplant gemäß Abschnitt 8)
 
 # 8. Cross-cutting Concepts
 
@@ -158,16 +187,17 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 - **Error Handling**: `ErrorMessage.svelte` centralizes readable messages per story 10.
 - **Configuration**: Available dates/hours currently hardcoded but isolated so they can be fetched; image naming enforced globally.
 - **Observability**: Runtime feedback (loading spinners, placeholders) proxies for traditional logging in the static frontend; future API integration should forward correlation IDs.
-- **Security (planned)**: API key headers, HTTPS endpoints, and AWS IAM roles as mandated by stories 12–22 once backend components exist.
+- **Security (planned)**: API key headers, HTTPS endpoints, and AWS IAM roles as mandated by stories 1222 once backend components exist.
 
 # 9. Architecture Decisions
 
-| ID | Decision                                       | Status | Rationale                                                        |
-| --- |------------------------------------------------| --- |------------------------------------------------------------------|
-| ADR-01 | Use SvelteKit + Tailwind for UI                | Accepted | Matches course tech stack, supports fast prototyping.            |
-| ADR-02 | Host static build on AWS S3 (+ optional CloudFront) | Accepted | Keeps deployment simple and integrates with AWS-native services. |
-| ADR-03 | Mock data until backend ready                  | Accepted w/ debt | Keeps focus on UX backlog while API stories are pending.         |
-| ADR-04 | Image naming convention `{city}_{date}_{hour}` | Accepted | Enables deterministic lookup without metadata service.           |
+| ID     | Decision                                       | Status | Rationale                                                                                                                                                                                                               |
+|--------|------------------------------------------------| --- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ADR-01 | Use SvelteKit + Tailwind for UI                | Accepted | Matches course tech stack, supports fast prototyping.                                                                                                                                                                   |
+| ADR-02 | Host static build on AWS S3 Static Website Hosting | Accepted | S3 Bucket with active Static Website Hosting and public access; website accessible via S3 endpoint URL (`http://weatherarchivebucket.s3-website-us-east-1.amazonaws.com`). |
+| ADR-03 | Mock data until backend ready                  | Accepted w/ debt | Keeps focus on UX backlog while API stories are pending.                                                                                                                                                                |
+| ADR-04 | Image naming convention `{city}_{date}_{hour}` | Accepted | Enables deterministic lookup without metadata service.                                                                                                                                                                  |
+| ADR-05 | Create API Gateway with authentication         |        |                                                                                                                                                                                                                         |
 
 # 10. Quality Requirements
 
@@ -190,10 +220,10 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 
 # 11. Risks and Technical Debts
 
-- **Backend Gap**: Stories 11–30 remain unimplemented; frontend mocks need replacement before live demo with webcams.
+- **Backend Gap**: Stories 11-30 remain unimplemented; frontend mocks need replacement before live demo with webcams.
 - **Asset Scale**: Up to 14 images per city/day currently planned; growth requires CDN/S3 integration to avoid bloated repository.
-- **Caching Strategy**: Redis stories (18–22) are unaddressed; document placeholders but plan iteration.
-- **Video Service**: Future addition of scheduled video rendering (stories 26–30) may impact UI (player component) and storage cost.
+- **Caching Strategy**: Redis stories (1822) are unaddressed; document placeholders but plan iteration.
+- **Video Service**: Future addition of scheduled video rendering (stories 2630) may impact UI (player component) and storage cost.
 
 # 12. Glossary
 
@@ -204,3 +234,4 @@ Lower-level elements (e.g., slider, error card) rely on native HTML inputs and T
 | Media Slot | UI area currently showing an image but designed to host video playback later. |
 | Evaluation Matrix | Spreadsheet in `docs/Evaluation_matrix_for_the_semester_project.md` enumerating backlog items and status. |
 | Semester Project Specification | Official PDF outlining functional and non-functional requirements for the course project. |
+
