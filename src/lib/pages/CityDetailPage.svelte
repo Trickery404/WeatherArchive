@@ -2,7 +2,7 @@
 	import WeatherPlot from '$lib/components/WeatherPlot.svelte';
 	import ErrorMessage from '$lib/components/ErrorMessage.svelte';
 	import DatePicker from '$lib/components/DatePicker.svelte';
-	import { fetchCityImages, getImageUrl } from '$lib/services/weatherApi';
+	import { fetchCityImages, getImageUrl, getVideoUrl } from '$lib/services/weatherApi';
 	import { onMount } from 'svelte';
 
 	export let citySlug = '';
@@ -11,7 +11,7 @@
 		: '';
 
 	let date = '2026-01-17';
-	let hour = 10;
+	let hour = 6; // Automatically set to earliest available hour
 	let errorMessage = '';
 
 	// API Integration
@@ -54,12 +54,16 @@
 			const data = await fetchCityImages(citySlug, date, hour);
 			images = data.images || [];
 
-			if (images.length > 0) {
-				currentImage = images[0];
-				cacheStatus = data.source; // Only set cache status if images found
-			} else {
+		if (images.length > 0) {
+			// Select the most recent (last) image
+			// For < 12 images: Shows latest available data
+			// For 12 images: Video will be displayed when available
+			const lastIndex = images.length - 1;
+			currentImage = images[lastIndex];
+			cacheStatus = data.source;
+		} else {
 				currentImage = null;
-				cacheStatus = null; // Reset cache status if no images
+				cacheStatus = null;
 				errorMessage = `No image found for ${date} at ${hour}:00`;
 			}
 		} catch (error) {
@@ -72,13 +76,35 @@
 		}
 	}
 
-	onMount(loadImages);
+	onMount(() => {
+		// Set hour to earliest available hour for initial date
+		const initialHours = availableHours[date] || [];
+		if (initialHours.length > 0) {
+			hour = Math.min(...initialHours);
+		}
+		loadImages();
+	});
+
 	$: if (citySlug && date && hour !== undefined) {
 		loadImages();
 	}
 
 	$: imagePath = currentImage ? getImageUrl(currentImage.s3_edited_key || currentImage.s3_unedited_key) : '';
+	$: videoPath = currentImage?.s3_video_key ? getVideoUrl(currentImage.s3_video_key) : '';
+	$: hasVideo = !!videoPath;
 	$: hasData = currentImage !== null;
+
+	// Video generation status
+	$: videoGenerating = hasData && !hasVideo && images.length >= 12; // 12+ images but no video = being generated
+	$: videoNotAvailable = hasData && !hasVideo && images.length < 12; // < 12 images = cannot be generated
+
+	// Video info
+	$: videoInfo = hasVideo && currentImage ? {
+		startTime: `${hour}:00`,
+		endTime: `${hour}:55`,
+		frameCount: 12,
+		duration: '12 seconds'
+	} : null;
 
 	$: currentWeather = currentImage ? {
 		temperature: parseFloat(currentImage.temperature) || 26,
@@ -114,12 +140,18 @@
 		errorMessage = '';
 	}
 
+	// Auto-adjust hour if not available for selected date
 	$: if (date && currentAvailableHours.length > 0 && !currentAvailableHours.includes(hour)) {
-		hour = currentAvailableHours[0];
+		hour = Math.min(...currentAvailableHours); // Earliest available hour
 	}
 
 	function handleDateChange(event) {
 		date = event.detail;
+		// Set hour to earliest available hour for new date
+		const newHours = availableHours[date] || [];
+		if (newHours.length > 0) {
+			hour = Math.min(...newHours);
+		}
 	}
 </script>
 
@@ -139,7 +171,16 @@
 
 <section class="grid md:grid-cols-2 gap-6 mb-6">
 	<div class="rounded-2xl border border-stone-300/70 bg-white/85 backdrop-blur p-4">
-		<h2 class="font-semibold mb-2">Weather Image</h2>
+		<h2 class="font-semibold mb-2">
+			Weather {hasVideo ? 'Video' : 'Image'}
+			{#if hasVideo}
+				<span class="text-xs font-normal text-stone-500 ml-2">(Hourly time-lapse)</span>
+			{:else if videoGenerating}
+				<span class="text-xs font-normal text-amber-600 ml-2">⏳ Video generating...</span>
+			{:else if videoNotAvailable}
+				<span class="text-xs font-normal text-stone-400 ml-2">(Video not yet available)</span>
+			{/if}
+		</h2>
 
 		{#if loading}
 			<div class="aspect-video rounded-xl bg-stone-200 flex items-center justify-center">
@@ -148,13 +189,54 @@
 					<span class="text-stone-600">Loading from API...</span>
 				</div>
 			</div>
+		{:else if hasData && hasVideo}
+			<!-- Video Player -->
+			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
+				<video
+					src={videoPath}
+					controls
+					autoplay
+					loop
+					muted
+					class="w-full h-full object-cover"
+				>
+					<track kind="captions" />
+					Your browser does not support the video tag.
+				</video>
+
+				<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 pointer-events-none">
+					<p class="text-white text-sm font-medium">
+						{date} • {videoInfo.startTime} - {videoInfo.endTime}
+					</p>
+					<p class="text-white/80 text-xs">
+						Time-lapse: {videoInfo.frameCount} frames, {videoInfo.duration} • 5-min intervals
+					</p>
+					{#if currentImage}
+						<p class="text-white/70 text-xs mt-1">
+							Avg: {currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
+						</p>
+					{/if}
+				</div>
+			</div>
 		{:else if hasData && imagePath}
+			<!-- Static Image with optional "generating" banner -->
 			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
 				<img
 					src={imagePath}
 					alt="{pretty} weather on {date} at {hour}:00"
 					class="w-full h-full object-cover"
 				/>
+
+				{#if videoGenerating}
+					<!-- Banner: Video is being generated -->
+					<div class="absolute top-3 left-3 right-3 bg-amber-500/90 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+						<svg class="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span class="text-white text-xs font-medium">Video is being generated ({images.length} images available)</span>
+					</div>
+				{/if}
 
 				<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
 					<p class="text-white text-sm font-medium">{date} at {hour}:00</p>
@@ -163,11 +245,20 @@
 							{currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
 						</p>
 					{/if}
+					{#if videoNotAvailable && images.length > 0}
+						<p class="text-white/60 text-xs mt-1">
+							{images.length} of 12 images available (video requires 12 images)
+						</p>
+					{/if}
 				</div>
 			</div>
 		{:else}
+			<!-- Placeholder -->
 			<div class="aspect-video rounded-xl bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
-				<span class="text-stone-500">No image available for this date/hour</span>
+				<div class="text-center p-4">
+					<span class="text-stone-500">No video or image available for this date/hour</span>
+					<p class="text-stone-400 text-xs mt-2">Try selecting a different date or hour</p>
+				</div>
 			</div>
 		{/if}
 	</div>

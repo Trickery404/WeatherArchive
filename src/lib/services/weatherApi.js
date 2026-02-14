@@ -2,7 +2,7 @@
 // Handles communication with AWS Lambda queryWeatherData (with Redis caching)
 
 const API_URL = 'https://iuuqxsiemk.execute-api.us-east-1.amazonaws.com/dev';
-const API_KEY = 'Oucs1touWZ2NhGmtwAK3IuwpU4G4AlA8BxGKLyQ3';
+const API_KEY = 'Gx5CjLcaicw5cAnsjjm44qx88qdEGF02XU7BpzCg';
 
 /**
  * Fetch images for a city (with Redis caching)
@@ -64,5 +64,16 @@ export function getImageUrl(s3Key) {
 	const bucket = 'weatherarchive-raw';  // Hard-coded - single bucket strategy
 	const region = 'us-east-1';
 	return `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`;
+}
+
+/**
+ * Get S3 URL for a video
+ * @param {string} s3VideoKey - S3 key (e.g., "videos/amsterdam_2026-01-17_10.mp4")
+ * @returns {string} Full S3 URL
+ */
+export function getVideoUrl(s3VideoKey) {
+	const bucket = 'weatherarchive-videos';
+	const region = 'us-east-1';
+	return `https://${bucket}.s3.${region}.amazonaws.com/${s3VideoKey}`;
 }
 
