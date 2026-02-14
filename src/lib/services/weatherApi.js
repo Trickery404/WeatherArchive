@@ -56,12 +56,11 @@ export async function fetchCityImages(citySlug, date = null, hour = null) {
 
 /**
  * Get S3 URL for an image
- * UPDATED: No longer requires s3_bucket parameter (hard-coded to weatherarchive-raw)
  * @param {string} s3Key - S3 key (e.g., "amsterdam/unedited/amsterdam_2026-01-17_06.jpg")
  * @returns {string} Full S3 URL
  */
 export function getImageUrl(s3Key) {
-	const bucket = 'weatherarchive-raw';  // Hard-coded - single bucket strategy
+	const bucket = 'weatherarchive-edited';
 	const region = 'us-east-1';
 	return `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`;
 }
