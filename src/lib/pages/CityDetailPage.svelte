@@ -2,20 +2,28 @@
 	import WeatherPlot from '$lib/components/WeatherPlot.svelte';
 	import ErrorMessage from '$lib/components/ErrorMessage.svelte';
 	import DatePicker from '$lib/components/DatePicker.svelte';
+	import { fetchCityImages, getImageUrl } from '$lib/services/weatherApi';
+	import { onMount } from 'svelte';
 
 	export let citySlug = '';
 	const pretty = citySlug
 		? citySlug.split('-').map(s => s[0].toUpperCase() + s.slice(1)).join(' ')
 		: '';
 
-	let date = '2026-01-17'; // Default to today with existing images
-	let hour = 10; // Default to hour with existing image
+	let date = '2026-01-17';
+	let hour = 10;
 	let errorMessage = '';
 
-	// Available dates (current week with test images)
+	// API Integration
+	let images = [];
+	let loading = false;
+	let cacheStatus = null;
+	let currentImage = null;
+
+	// Available dates
 	const availableDates = [
-		'2025-01-01', // Old test images
-		'2026-01-17', // Today
+		'2025-01-01',
+		'2026-01-17',
 		'2026-01-18',
 		'2026-01-19',
 		'2026-01-20',
@@ -24,9 +32,8 @@
 		'2026-01-23'
 	];
 
-	/** @type {Record<string, number[]>} */
 	const availableHours = {
-		'2025-01-01': [8, 9, 10, 11], // Old test images
+		'2025-01-01': [8, 9, 10, 11],
 		'2026-01-17': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
 		'2026-01-18': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
 		'2026-01-19': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
@@ -36,31 +43,51 @@
 		'2026-01-23': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 	};
 
-	// Image naming: cityslug_YYYY-MM-DD_HH.jpg (e.g., vienna_2025-01-01_08.jpg)
-	$: imagePath = date && hour !== undefined
-		? `/images/${citySlug}_${date}_${String(hour).padStart(2, '0')}.jpg`
-		: '';
+	// Load images from API
+	async function loadImages() {
+		if (!citySlug || !date || hour === undefined) return;
 
-	let imageExists = false;
-	let imageLoading = false;
+		loading = true;
+		errorMessage = '';
 
-	$: if (imagePath) {
-		imageLoading = true;
-		imageExists = false;
+		try {
+			const data = await fetchCityImages(citySlug, date, hour);
+			images = data.images || [];
+
+			if (images.length > 0) {
+				currentImage = images[0];
+				cacheStatus = data.source; // Only set cache status if images found
+			} else {
+				currentImage = null;
+				cacheStatus = null; // Reset cache status if no images
+				errorMessage = `No image found for ${date} at ${hour}:00`;
+			}
+		} catch (error) {
+			errorMessage = `Error loading images: ${error.message}`;
+			images = [];
+			currentImage = null;
+			cacheStatus = null;
+		} finally {
+			loading = false;
+		}
 	}
 
-	function handleImageLoad() {
-		imageExists = true;
-		imageLoading = false;
+	onMount(loadImages);
+	$: if (citySlug && date && hour !== undefined) {
+		loadImages();
 	}
 
-	function handleImageError() {
-		imageExists = false;
-		imageLoading = false;
-	}
+	$: imagePath = currentImage ? getImageUrl(currentImage.s3_edited_key || currentImage.s3_unedited_key) : '';
+	$: hasData = currentImage !== null;
 
-	// TODO: Replace with real-time data
-	const currentWeather = {
+	$: currentWeather = currentImage ? {
+		temperature: parseFloat(currentImage.temperature) || 26,
+		humidity: currentImage.humidity || 48,
+		pressure: currentImage.air_pressure || 1016,
+		description: 'Sunny',
+		humidityStatus: 'Comfortable',
+		pressureStatus: 'Stable'
+	} : {
 		temperature: 26,
 		humidity: 48,
 		pressure: 1016,
@@ -71,7 +98,6 @@
 
 	$: hasDataForDate = date ? availableDates.includes(date) : false;
 	$: hasDataForHour = date && hasDataForDate ? availableHours[date]?.includes(hour) : false;
-	$: hasData = hasDataForDate && hasDataForHour;
 
 	$: minDate = availableDates.length > 0 ? availableDates[0] : '';
 	$: maxDate = availableDates.length > 0 ? availableDates[availableDates.length - 1] : '';
@@ -84,7 +110,7 @@
 		errorMessage = `No data available for ${date}. Please select an available date.`;
 	} else if (date && hour !== undefined && !currentAvailableHours.includes(hour)) {
 		errorMessage = `No data available for ${hour}:00 on ${date}. Available hours: ${currentAvailableHours.join(', ')}`;
-	} else {
+	} else if (!errorMessage) {
 		errorMessage = '';
 	}
 
@@ -92,13 +118,20 @@
 		hour = currentAvailableHours[0];
 	}
 
-	/** @param {CustomEvent<string>} event */
 	function handleDateChange(event) {
 		date = event.detail;
 	}
 </script>
 
 <h1 class="font-brand text-3xl font-bold mb-6">{pretty}</h1>
+
+{#if cacheStatus && images.length > 0}
+	<div class="mb-4 p-3 rounded-lg {cacheStatus === 'cache' ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}">
+		<span class="{cacheStatus === 'cache' ? 'text-green-800' : 'text-blue-800'} font-medium">
+			{cacheStatus === 'cache' ? 'Loaded from Redis cache' : 'Loaded from database'}
+		</span>
+	</div>
+{/if}
 
 {#if errorMessage}
 	<ErrorMessage detail={errorMessage} />
@@ -107,57 +140,36 @@
 <section class="grid md:grid-cols-2 gap-6 mb-6">
 	<div class="rounded-2xl border border-stone-300/70 bg-white/85 backdrop-blur p-4">
 		<h2 class="font-semibold mb-2">Weather Image</h2>
-		{#if hasData}
-			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
-				{#if imageLoading}
-					<div class="absolute inset-0 flex items-center justify-center">
-						<div class="text-center">
-							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-600 mx-auto mb-2"></div>
-							<span class="text-stone-600">Loading image...</span>
-						</div>
-					</div>
-				{/if}
 
+		{#if loading}
+			<div class="aspect-video rounded-xl bg-stone-200 flex items-center justify-center">
+				<div class="text-center">
+					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-600 mx-auto mb-2"></div>
+					<span class="text-stone-600">Loading from API...</span>
+				</div>
+			</div>
+		{:else if hasData && imagePath}
+			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
 				<img
 					src={imagePath}
 					alt="{pretty} weather on {date} at {hour}:00"
-					class="w-full h-full object-cover {imageExists ? 'block' : 'hidden'}"
-					on:load={handleImageLoad}
-					on:error={handleImageError}
+					class="w-full h-full object-cover"
 				/>
 
-				{#if !imageLoading && !imageExists}
-					<div class="absolute inset-0 flex items-center justify-center">
-						<div class="text-center p-4">
-							<svg class="w-16 h-16 mx-auto text-stone-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-							</svg>
-							<span class="text-stone-600 font-medium">No image available</span>
-							<p class="text-xs text-stone-500 mt-1">{date} - {hour}:00</p>
-							<p class="text-xs text-stone-400 mt-2">Expected: {imagePath.split('/').pop()}</p>
-						</div>
-					</div>
-				{/if}
-
-				{#if imageExists}
-					<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-						<p class="text-white text-sm font-medium">{date} at {hour}:00</p>
-					</div>
-				{/if}
+				<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+					<p class="text-white text-sm font-medium">{date} at {hour}:00</p>
+					{#if currentImage}
+						<p class="text-white/80 text-xs">
+							{currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
+						</p>
+					{/if}
+				</div>
 			</div>
 		{:else}
 			<div class="aspect-video rounded-xl bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
-				<span class="text-stone-500">Select an available date and hour</span>
+				<span class="text-stone-500">No image available for this date/hour</span>
 			</div>
 		{/if}
-
-		<div class="mt-2 text-xs text-stone-500">
-			<p><strong>Expected filename format:</strong></p>
-			<p class="font-mono bg-stone-100 px-2 py-1 rounded mt-1">
-				{citySlug}_YYYY-MM-DD_HH.jpg
-			</p>
-			<p class="mt-1">Example: {citySlug}_2025-01-01_08.jpg</p>
-		</div>
 	</div>
 
 	<div class="rounded-2xl border border-stone-300/70 bg-white/85 backdrop-blur p-4 flex flex-col">
@@ -201,46 +213,36 @@
 				{availableDates}
 				{minDate}
 				{maxDate}
-				on:change={handleDateChange}
+				on:dateChange={handleDateChange}
 			/>
-			<div class="text-xs text-stone-500 mt-1">
-				Available dates: {availableDates.length}
-			</div>
 		</div>
 
-		<div class="sm:col-span-2">
-			<label for="hour" class="block text-sm font-medium mb-1">
-				Hour of day
-				{#if currentAvailableHours.length > 0}
-					<span class="text-stone-500 text-xs">
-						(Available: {minHour}:00 - {maxHour}:00)
-					</span>
-				{/if}
-			</label>
+		<div>
+			<label for="hour" class="block text-sm font-medium mb-1">Hour</label>
 			<input
 				id="hour"
 				type="range"
-				min={currentAvailableHours.length > 0 ? minHour : 0}
-				max={currentAvailableHours.length > 0 ? maxHour : 23}
+				min={minHour}
+				max={maxHour}
+				step="1"
 				bind:value={hour}
-				class="w-full"
-				disabled={!date || currentAvailableHours.length === 0}
+				class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer"
 			/>
-			<div class="text-sm text-stone-600 mt-1 flex justify-between">
-				<span>Selected: {hour}:00</span>
-				{#if hasDataForHour}
-					<span class="text-green-600 font-medium">[OK] Data available</span>
-				{/if}
+			<div class="flex justify-between text-xs text-stone-500 mt-1">
+				<span>{minHour}:00</span>
+				<span class="font-semibold text-stone-700">{hour}:00</span>
+				<span>{maxHour}:00</span>
 			</div>
 		</div>
-	</div>
 
-	{#if date && currentAvailableHours.length > 0}
-		<div class="mt-4 p-3 bg-blue-50 rounded-lg">
-			<p class="text-sm text-blue-900">
-				<strong>Available hours for {date}:</strong>
-				{currentAvailableHours.map((/** @type {number} */ h) => `${h}:00`).join(', ')}
-			</p>
+		<div class="flex items-end">
+			<button
+				class="w-full px-4 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors"
+				on:click={() => loadImages()}
+			>
+				Refresh Data
+			</button>
 		</div>
-	{/if}
+	</div>
 </section>
+
