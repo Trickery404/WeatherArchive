@@ -54,25 +54,12 @@ export async function fetchCityImages(citySlug, date = null, hour = null) {
 	}
 }
 
-/**
- * Get S3 URL for an image
- * @param {string} s3Key - S3 key (e.g., "amsterdam/unedited/amsterdam_2026-01-17_06.jpg")
- * @returns {string} Full S3 URL
- */
-export function getImageUrl(s3Key) {
-	const bucket = 'weatherarchive-edited';
-	const region = 'us-east-1';
-	return `https://${bucket}.s3.${region}.amazonaws.com/${s3Key}`;
-}
-
-/**
- * Get S3 URL for a video
- * @param {string} s3VideoKey - S3 key (e.g., "videos/amsterdam_2026-01-17_10.mp4")
- * @returns {string} Full S3 URL
- */
-export function getVideoUrl(s3VideoKey) {
-	const bucket = 'weatherarchive-videos';
-	const region = 'us-east-1';
-	return `https://${bucket}.s3.${region}.amazonaws.com/${s3VideoKey}`;
-}
+// ========================================
+// No URL building needed!
+// The Lambda already returns signed URLs in the response:
+// - signed_edited_url
+// - signed_unedited_url
+// - signed_video_url
+// Just use them directly in your components!
+// ========================================
 

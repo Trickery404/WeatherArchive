@@ -2,7 +2,7 @@
 	import WeatherPlot from '$lib/components/WeatherPlot.svelte';
 	import ErrorMessage from '$lib/components/ErrorMessage.svelte';
 	import DatePicker from '$lib/components/DatePicker.svelte';
-	import { fetchCityImages, getImageUrl, getVideoUrl } from '$lib/services/weatherApi';
+	import { fetchCityImages } from '$lib/services/weatherApi';
 	import { onMount } from 'svelte';
 
 	export let citySlug = '';
@@ -89,8 +89,11 @@
 		loadImages();
 	}
 
-	$: imagePath = currentImage ? getImageUrl(currentImage.s3_edited_key || currentImage.s3_unedited_key) : '';
-	$: videoPath = currentImage?.s3_video_key ? getVideoUrl(currentImage.s3_video_key) : '';
+	// Use signed URLs from Lambda response (valid for 1 hour)
+	$: imagePath = currentImage
+		? (currentImage.signed_edited_url || currentImage.signed_unedited_url || '')
+		: '';
+	$: videoPath = currentImage?.signed_video_url || '';
 	$: hasVideo = !!videoPath;
 	$: hasData = currentImage !== null;
 
