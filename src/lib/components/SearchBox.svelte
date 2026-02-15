@@ -1,14 +1,14 @@
-<script lang="ts">
+<script>
 	import { createEventDispatcher } from 'svelte';
 
-	export let capitals: string[] = [];
+	export let capitals = [];
 	export let placeholder = 'Search city...';
 	export let value = '';
 
 	const dispatch = createEventDispatcher();
 	let error = '';
 
-	const slug = (s: string) => s.toLowerCase().replace(/\s+/g, '-');
+	const slug = (s) => s.toLowerCase().replace(/\s+/g, '-');
 
 	function submit() {
 		const hit = capitals.find(
@@ -22,8 +22,8 @@
 		}
 	}
 
-	function handleInput(e: Event) {
-		const v = (e.target as HTMLInputElement).value;
+	function handleInput(e) {
+		const v = e.target.value;
 		error = '';
 		dispatch('input', v);
 	}

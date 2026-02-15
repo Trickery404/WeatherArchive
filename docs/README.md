@@ -1,148 +1,94 @@
-# WeatherArchive
+﻿# WeatherArchive - Documentation Index
 
-Web application that displays historical weather data through API endpoints using **SvelteKit** and **Tailwind CSS**.
+This documentation describes the architecture, API design and backend implementation of the WeatherArchive project.
 
-## Features
+---
 
-- **City Search** - Search through European capital cities
-- **Weather Visualization** - Interactive charts showing temperature, humidity, and air pressure
-- **Image Display** - View weather images for specific dates and times
-- **Custom Date Picker** - Select from available dates with visual calendar
-- **Hourly Data** - Browse weather data by hour with slider control
-- **Modern UI** - Clean, responsive design with Tailwind CSS
-- **Static Hosting** - Optimized for S3 + optional CloudFront deployment
+## For Project Submission
 
-## Project Structure
+### Arc42 Architecture Documentation
+**[ARC42.md](./ARC42.md)** - **MAIN DOCUMENT FOR SUBMISSION**
+
+Contains:
+- 1. Introduction and Goals
+- 3. Context and Scope
+- 4. Solution Strategy
+- 5. Building Block View
+- 9. Architecture Decisions
+
+### Project Specification
+- **[semester_project_serverless_computing_and_FAQs_2024.pdf](./semester_project_serverless_computing_and_FAQs_2024.pdf)** - Official requirements
+- **[Evaluation_matrix_for_the_semester_project.md](./Evaluation_matrix_for_the_semester_project.md)** - Evaluation criteria
+
+---
+
+## Backend Documentation
+
+**See [ARC42.md](./ARC42.md)** for complete backend architecture:
+- **Section 5.1:** Building Block View - Lambda Functions, Services, Data Flow
+- **Section 5.2:** StoreImage Lambda Details
+- **Section 5.3:** Database Schema (PostgreSQL) - Cities and Images Tables
+- **Section 6:** Runtime View - Scenarios and Flow Diagrams
+- **Section 7:** Deployment View - AWS Infrastructure
+- **Section 8:** Cross-cutting Concepts - Security, Caching Strategy, Error Handling
+
+---
+
+## Project Status
+
+**Implemented (30/50 Story Points):**
+- Frontend (Stories 1-10): Homepage, Search, City Detail Page with Datepicker/Slider
+- API Gateway + Lambda (Stories 11-15): Webcam Upload, Metadata Storage, Query API
+- Redis Cache (Stories 16-22): Cache Hit/Miss Logic, 1h TTL, 100x Performance Gain
+- Picture Service (Stories 23-25): Image Resize, S3 Storage, DB Update
+
+**Open (20/50 Story Points):**
+- Video Service (Stories 26-30): Scheduled Video Generation, FFmpeg Lambda
+- Documentation Final (Stories 31-33): Arc42 Finalization, Video Presentation, Code Quality Review
+
+**Deployment:**
+- Frontend: http://weatherarchivebucket.s3-website-us-east-1.amazonaws.com
+- API Gateway: https://iuuqxsiemk.execute-api.us-east-1.amazonaws.com/dev
+- Database: PostgreSQL RDS (8 Cities, Images Table)
+- Cache: Redis Cloud (redis-11215.c240.us-east-1-3.ec2.cloud.redislabs.com)
+
+---
+
+## Additional Documentation
+
+### Infrastructure:
+- **[../infra/postgres-schema.sql](../infra/postgres-schema.sql)** - PostgreSQL Schema (with current column names: s3_unedited_key, s3_edited_key, s3_video_key)
+- **[../infra/s3-cors.json](../infra/s3-cors.json)** - S3 CORS Configuration
+
+---
+
+## Documentation Structure
 
 ```
-src/
-├── lib/
-│   ├── components/
-│   │   ├── DatePicker.svelte      # Custom calendar component
-│   │   ├── ErrorMessage.svelte    # Error display component
-│   │   ├── Header.svelte          # Application header
-│   │   ├── SearchBox.svelte       # City search input
-│   │   └── WeatherPlot.svelte     # Chart.js weather visualization
-│   ├── pages/
-│   │   ├── CityDetailPage.svelte  # City weather detail page
-│   │   └── HomePage.svelte        # Main search page
-│   └── styles/
-│       └── app.css                # Global styles with Tailwind
-├── routes/
-│   ├── +layout.svelte             # Layout wrapper
-│   ├── +page.svelte               # Home route
-│   └── (app)/cities/[city]/
-│       └── +page.svelte           # Dynamic city route
-└── static/
-    ├── images/                    # Weather images (cityslug_YYYY-MM-DD_HH.jpg)
-    └── logo.png                   # Application logo
+docs/
+├─ README.md                      You are here
+├─ ARC42.md                       Main document for submission
+└─ *.pdf                          Specifications
 ```
 
-## Image Naming Convention
+---
 
-Place weather images in `static/images/` with the following format:
-```
-{cityslug}_{YYYY-MM-DD}_{HH}.jpg
-```
+## Notes
 
-Examples:
-- `vienna_2025-01-01_08.jpg`
-- `berlin_2025-01-02_14.jpg`
-- `paris_2025-01-15_12.jpg`
+### For Developers:
+- **Quick Start:** See main README in project root
+- **API Testing:** See ARC42.md Section 5
 
-The City Detail page attempts to load `/images/{cityslug}_{date}_{hour}.jpg`. When a file is missing you will see a placeholder describing the expected filename.
+### For Reviewers:
+- **Start:** Read `ARC42.md`
+- **Details:** Review Backend Documentation sections
+- **Code:** Check `../src/` directory
 
-## Requirements
+### For Deployment:
+- **Infrastructure:** `../infra/postgres-schema.sql`
+- **Frontend Build:** `npm run build` then sync to S3
 
-- Node.js (20+)
-- npm
+---
 
-## Development
+**START HERE: [ARC42.md](./ARC42.md) - Architecture Documentation**
 
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173)
-
-## Building
-
-```bash
-npm run build
-npm run preview
-```
-
-Preview production build at [http://localhost:4173](http://localhost:4173)
-
-## Deployment (S3 + optional CloudFront)
-
-1. Build the static site:
-   ```bash
-   npm run build
-   ```
-2. Upload to the target bucket (example command):
-   ```bash
-   aws s3 sync build/ s3://weatherarchive-prod/ --delete
-   ```
-3. (Optional) Invalidate CloudFront to propagate changes:
-   ```bash
-   aws cloudfront create-invalidation --distribution-id <ID> --paths "/*"
-   ```
-
-You no longer need the previous NGINX container workflow; the output under `build/` is served directly from S3.
-
-## Documentation
-
-- `docs/ARC42.md` – architecture description aligned with the evaluation matrix
-- `docs/Evaluation_matrix_for_the_semester_project.md` – user stories and status
-- `docs/semester_project_serverless_computing_and_FAQs_2024.pdf` – course requirements
-
-## IDE Recommendation (IntelliJ Ultimate)
-
-### Plugins
-- Svelte
-- Tailwind CSS
-- Prettier
-
-### Node & Package Manager
-Settings → Languages & Frameworks → Node.js
-- Node interpreter: local node installation (e.g. `C:\Program Files\nodejs\node.exe`)
-- Package manager: npm
-
-### ESLint
-Settings → Languages & Frameworks → JavaScript → Code Quality Tools → ESLint
-- Automatic ESLint configuration
-
-### Actions on Save
-Settings → Tools → Actions on Save
-- Run eslint --fix
-- Run Prettier
-
-## Linting & Formatting
-
-Run before commits/pull requests:
-
-```bash
-npm run lint
-npm run format
-```
-
-## Tech Stack
-
-- **Framework:** SvelteKit
-- **Styling:** Tailwind CSS
-- **Charts:** Chart.js
-- **Build Tool:** Vite
-- **Linting:** ESLint
-- **Formatting:** Prettier
-- **Hosting:** AWS S3 (+ CloudFront for CDN)
-
-## TODO
-
-- [ ] Connect to real backend API
-- [ ] Implement authentication
-- [ ] Add video playback support
-- [ ] Add image slideshow functionality
-- [ ] Implement data caching
-- [ ] Add more cities beyond European capitals
