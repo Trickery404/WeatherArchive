@@ -10,7 +10,21 @@
 		? citySlug.split('-').map(s => s[0].toUpperCase() + s.slice(1)).join(' ')
 		: '';
 
-	let date = '2026-01-17';
+	// Available dates
+	const availableDates = [
+		'2026-02-16',
+		'2026-02-17',
+		'2026-02-18'
+	];
+
+	const availableHours = {
+		'2026-02-16': [6, 7, 8, 9, 10, 11],
+		'2026-02-17': [6, 7, 8, 9, 10, 11],
+		'2026-02-18': [6, 7, 8, 9, 10, 11]
+	};
+
+	// Initialize with first available date
+	let date = availableDates[0];
 	let hour = 6; // Automatically set to earliest available hour
 	let errorMessage = '';
 
@@ -20,35 +34,6 @@
 	let cacheStatus = null;
 	let currentImage = null;
 	let videoData = null; // Separate video data for the full day
-
-	// Available dates
-	const availableDates = [
-		'2025-01-01',
-		'2026-01-17',
-		'2026-01-18',
-		'2026-01-19',
-		'2026-01-20',
-		'2026-01-21',
-		'2026-01-22',
-		'2026-01-23',
-		'2026-02-16',
-		'2026-02-17',
-		'2026-02-18'
-	];
-
-	const availableHours = {
-		'2025-01-01': [8, 9, 10, 11],
-		'2026-01-17': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-18': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-19': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-20': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-21': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-22': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-23': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-02-16': [6, 7, 8, 9, 10, 11],
-		'2026-02-17': [6, 7, 8, 9, 10, 11],
-		'2026-02-18': [6, 7, 8, 9, 10, 11]
-	};
 
 	// Load video data for the full day (check if video exists)
 	async function loadVideoData() {
@@ -285,20 +270,6 @@
 						<span class="text-white text-xs font-medium">Video is being generated</span>
 					</div>
 				{/if}
-
-				<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-					<p class="text-white text-sm font-medium">{date} at {hour}:00</p>
-					{#if currentImage}
-						<p class="text-white/80 text-xs">
-							{currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
-						</p>
-					{/if}
-					{#if !hasVideo}
-						<p class="text-white/60 text-xs mt-1">
-							Video requires 12 images for the day
-						</p>
-					{/if}
-				</div>
 			</div>
 		{:else}
 			<!-- Placeholder -->
@@ -352,7 +323,7 @@
 				{availableDates}
 				{minDate}
 				{maxDate}
-				on:dateChange={handleDateChange}
+				on:change={handleDateChange}
 			/>
 		</div>
 

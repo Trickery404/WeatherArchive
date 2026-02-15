@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { goto } from '$app/navigation';
 	import SearchBox from '$lib/components/SearchBox.svelte';
 
@@ -17,15 +17,15 @@
 		? capitals.filter(c => c.toLowerCase().includes(query.toLowerCase()))
 		: capitals;
 
-	function handleSelect(e: CustomEvent) {
+	function handleSelect(e) {
 		goto(`/cities/${e.detail.slug}`);
 	}
 
-	function handleInput(v: string) {
+	function handleInput(v) {
 		query = v;
 	}
 
-	function pick(city: string) {
+	function pick(city) {
 		query = city;
 		goto(`/cities/${city.toLowerCase().replace(/\s+/g, '-')}`);
 	}
