@@ -19,6 +19,7 @@
 	let loading = false;
 	let cacheStatus = null;
 	let currentImage = null;
+	let videoData = null; // Separate video data for the full day
 
 	// Available dates
 	const availableDates = [
@@ -29,7 +30,10 @@
 		'2026-01-20',
 		'2026-01-21',
 		'2026-01-22',
-		'2026-01-23'
+		'2026-01-23',
+		'2026-02-16',
+		'2026-02-17',
+		'2026-02-18'
 	];
 
 	const availableHours = {
@@ -40,10 +44,51 @@
 		'2026-01-20': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
 		'2026-01-21': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
 		'2026-01-22': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-		'2026-01-23': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+		'2026-01-23': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+		'2026-02-16': [6, 7, 8, 9, 10, 11],
+		'2026-02-17': [6, 7, 8, 9, 10, 11],
+		'2026-02-18': [6, 7, 8, 9, 10, 11]
 	};
 
-	// Load images from API
+	// Load video data for the full day (check if video exists)
+	async function loadVideoData() {
+		if (!citySlug || !date) return;
+
+		try {
+			// Fetch all images for the day (no hour filter)
+			const data = await fetchCityImages(citySlug, date, null);
+			const allImages = data.images || [];
+
+			if (allImages.length >= 12) {
+				// Check if any image has a video URL
+				const imageWithVideo = allImages.find(img => img.signed_video_url);
+				if (imageWithVideo) {
+					// Images come DESC from API, so reverse for correct start/end
+					const sortedImages = [...allImages].sort((a, b) =>
+						new Date(a.capture_time) - new Date(b.capture_time)
+					);
+
+					videoData = {
+						url: imageWithVideo.signed_video_url,
+						count: allImages.length,
+						startTime: sortedImages[0]?.capture_time,
+						endTime: sortedImages[sortedImages.length - 1]?.capture_time
+					};
+					console.log('[Video] Found video for date:', date);
+					return;
+				}
+			}
+
+			// No video available
+			videoData = null;
+			console.log('[Video] No video available for date:', date, 'Images:', allImages.length);
+		} catch (error) {
+			console.error('[Video] Error loading video data:', error);
+			videoData = null;
+		}
+	}
+
+	// Load images from API for specific hour
 	async function loadImages() {
 		if (!citySlug || !date || hour === undefined) return;
 
@@ -51,17 +96,19 @@
 		errorMessage = '';
 
 		try {
+			// First, check for video data
+			await loadVideoData();
+
+			// Then load image for specific hour
 			const data = await fetchCityImages(citySlug, date, hour);
 			images = data.images || [];
 
-		if (images.length > 0) {
-			// Select the most recent (last) image
-			// For < 12 images: Shows latest available data
-			// For 12 images: Video will be displayed when available
-			const lastIndex = images.length - 1;
-			currentImage = images[lastIndex];
-			cacheStatus = data.source;
-		} else {
+			if (images.length > 0) {
+				// Select the most recent (last) image
+				const lastIndex = images.length - 1;
+				currentImage = images[lastIndex];
+				cacheStatus = data.source;
+			} else {
 				currentImage = null;
 				cacheStatus = null;
 				errorMessage = `No image found for ${date} at ${hour}:00`;
@@ -83,30 +130,36 @@
 			hour = Math.min(...initialHours);
 		}
 		loadImages();
+		loadVideoData();
 	});
 
 	$: if (citySlug && date && hour !== undefined) {
 		loadImages();
 	}
 
+	// Reload video data when date changes
+	$: if (citySlug && date) {
+		loadVideoData();
+	}
+
 	// Use signed URLs from Lambda response (valid for 1 hour)
 	$: imagePath = currentImage
 		? (currentImage.signed_edited_url || currentImage.signed_unedited_url || '')
 		: '';
-	$: videoPath = currentImage?.signed_video_url || '';
+	$: videoPath = videoData?.url || '';
 	$: hasVideo = !!videoPath;
 	$: hasData = currentImage !== null;
 
 	// Video generation status
-	$: videoGenerating = hasData && !hasVideo && images.length >= 12; // 12+ images but no video = being generated
-	$: videoNotAvailable = hasData && !hasVideo && images.length < 12; // < 12 images = cannot be generated
+	$: videoGenerating = !hasVideo && hasData; // Show generating message when no video but data exists
+	$: videoNotAvailable = !hasVideo && !hasData; // No video and no data
 
 	// Video info
-	$: videoInfo = hasVideo && currentImage ? {
-		startTime: `${hour}:00`,
-		endTime: `${hour}:55`,
-		frameCount: 12,
-		duration: '12 seconds'
+	$: videoInfo = hasVideo && videoData ? {
+		frameCount: videoData.count,
+		startTime: videoData.startTime ? new Date(videoData.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+		endTime: videoData.endTime ? new Date(videoData.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+		duration: `${videoData.count} seconds`
 	} : null;
 
 	$: currentWeather = currentImage ? {
@@ -160,7 +213,7 @@
 
 <h1 class="font-brand text-3xl font-bold mb-6">{pretty}</h1>
 
-{#if cacheStatus && images.length > 0}
+{#if !loading && cacheStatus && images.length > 0}
 	<div class="mb-4 p-3 rounded-lg {cacheStatus === 'cache' ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}">
 		<span class="{cacheStatus === 'cache' ? 'text-green-800' : 'text-blue-800'} font-medium">
 			{cacheStatus === 'cache' ? 'Loaded from Redis cache' : 'Loaded from database'}
@@ -176,10 +229,10 @@
 	<div class="rounded-2xl border border-stone-300/70 bg-white/85 backdrop-blur p-4">
 		<h2 class="font-semibold mb-2">
 			Weather {hasVideo ? 'Video' : 'Image'}
-			{#if hasVideo}
-				<span class="text-xs font-normal text-stone-500 ml-2">(Hourly time-lapse)</span>
+			{#if hasVideo && videoInfo}
+				<span class="text-xs font-normal text-stone-500 ml-2">({videoInfo.startTime} - {videoInfo.endTime})</span>
 			{:else if videoGenerating}
-				<span class="text-xs font-normal text-amber-600 ml-2">⏳ Video generating...</span>
+				<span class="text-xs font-normal text-amber-600 ml-2">Video generating...</span>
 			{:else if videoNotAvailable}
 				<span class="text-xs font-normal text-stone-400 ml-2">(Video not yet available)</span>
 			{/if}
@@ -189,11 +242,11 @@
 			<div class="aspect-video rounded-xl bg-stone-200 flex items-center justify-center">
 				<div class="text-center">
 					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-stone-600 mx-auto mb-2"></div>
-					<span class="text-stone-600">Loading from API...</span>
+					<span class="text-stone-600">Loading...</span>
 				</div>
 			</div>
-		{:else if hasData && hasVideo}
-			<!-- Video Player -->
+		{:else if hasVideo}
+			<!-- Video Player - Show video if available (12+ images for the day) -->
 			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
 				<video
 					src={videoPath}
@@ -209,20 +262,12 @@
 
 				<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 pointer-events-none">
 					<p class="text-white text-sm font-medium">
-						{date} • {videoInfo.startTime} - {videoInfo.endTime}
+						{videoInfo.startTime} - {videoInfo.endTime}
 					</p>
-					<p class="text-white/80 text-xs">
-						Time-lapse: {videoInfo.frameCount} frames, {videoInfo.duration} • 5-min intervals
-					</p>
-					{#if currentImage}
-						<p class="text-white/70 text-xs mt-1">
-							Avg: {currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
-						</p>
-					{/if}
 				</div>
 			</div>
 		{:else if hasData && imagePath}
-			<!-- Static Image with optional "generating" banner -->
+			<!-- Static Image - Show latest image when video not available (< 12 images) -->
 			<div class="aspect-video rounded-xl bg-stone-200 overflow-hidden relative">
 				<img
 					src={imagePath}
@@ -237,7 +282,7 @@
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						<span class="text-white text-xs font-medium">Video is being generated ({images.length} images available)</span>
+						<span class="text-white text-xs font-medium">Video is being generated</span>
 					</div>
 				{/if}
 
@@ -248,9 +293,9 @@
 							{currentImage.temperature}°C • {currentImage.humidity}% • {currentImage.air_pressure} hPa
 						</p>
 					{/if}
-					{#if videoNotAvailable && images.length > 0}
+					{#if !hasVideo}
 						<p class="text-white/60 text-xs mt-1">
-							{images.length} of 12 images available (video requires 12 images)
+							Video requires 12 images for the day
 						</p>
 					{/if}
 				</div>
