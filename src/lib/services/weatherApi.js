@@ -1,8 +1,10 @@
 // API Service for WeatherArchive
 // Handles communication with AWS Lambda queryWeatherData (with Redis caching)
 
-const API_URL = 'https://iuuqxsiemk.execute-api.us-east-1.amazonaws.com/dev';
-const API_KEY = 'Gx5CjLcaicw5cAnsjjm44qx88qdEGF02XU7BpzCg';
+import { PUBLIC_API_URL, PUBLIC_API_KEY } from '$env/static/public';
+
+const API_URL = PUBLIC_API_URL || 'https://j7gfdg5i29.execute-api.us-east-1.amazonaws.com/dev';
+const API_KEY = PUBLIC_API_KEY;
 
 /**
  * Fetch images for a city (with Redis caching)
@@ -14,7 +16,7 @@ const API_KEY = 'Gx5CjLcaicw5cAnsjjm44qx88qdEGF02XU7BpzCg';
  */
 export async function fetchCityImages(citySlug, date = null, hour = null) {
 	// Build query parameters
-	let url = `${API_URL}/query-weather-data?city=${citySlug}`;
+	let url = `${API_URL}/queryWeatherData?city=${citySlug}`;
 
 	if (date) {
 		url += `&date=${date}`;
@@ -27,17 +29,38 @@ export async function fetchCityImages(citySlug, date = null, hour = null) {
 	console.log('[API] Fetching:', url);
 
 	try {
+		// Send API key in header for authentication
+		// Note: Only sending x-api-key to avoid unnecessary CORS preflight
 		const response = await fetch(url, {
 			method: 'GET',
 			headers: {
 				'x-api-key': API_KEY
-				// Note: Cache-Control header removed to avoid CORS issues
-				// Redis caching happens server-side, not affected by browser cache
-			}
+			},
+			cache: 'default' // Use browser's default caching strategy (no cache-control header)
 		});
 
 		if (!response.ok) {
-			throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+			// Try to get error details from response body
+			let errorDetails = '';
+			try {
+				const errorData = await response.json();
+				errorDetails = errorData.error || errorData.message || '';
+			} catch {
+				errorDetails = response.statusText;
+			}
+
+			// Provide user-friendly error messages
+			if (response.status === 400) {
+				throw new Error(`Bad Request: ${errorDetails}`);
+			} else if (response.status === 404) {
+				throw new Error(`Data not found: ${errorDetails}`);
+			} else if (response.status === 403) {
+				throw new Error(`Access denied: Check API key configuration`);
+			} else if (response.status >= 500) {
+				throw new Error(`Server error: ${errorDetails}`);
+			} else {
+				throw new Error(`API Error: ${response.status} - ${errorDetails}`);
+			}
 		}
 
 		const data = await response.json();
