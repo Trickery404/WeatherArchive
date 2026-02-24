@@ -1,4 +1,4 @@
-﻿# 1. Introduction and Goals
+﻿﻿# 1. Introduction and Goals
 
 ## 1.1 Requirements Overview
 
@@ -15,7 +15,7 @@ The WeatherArchive frontend fulfills the user facing backlog from the Semester P
 | --- | --- | --- |
 | Q1 | Fast perception | Search and navigation respond in <300 ms locally; image loads provide feedback so users perceive responsiveness even when assets are missing. |
 | Q2 | Reliable data access | Date/hour controls never allow unavailable combinations; optimistic UI always communicates when data or media cannot be displayed. |
-| Q3 | Deployable artifact | `npm run build` must produce a deterministic static bundle that can be synced to S3/CloudFront without manual tweaks. |
+| Q3 | Deployable artifact | `npm run build` must produce a deterministic static bundle that can be synced to S3 without manual tweaks. |
 | Q4 | Evolvable backend | Frontend isolates backend calls behind fetch utilities so upcoming API increments (stories 1130) can be integrated without refactors. |
 
 ## 1.3 Stakeholders
@@ -25,14 +25,14 @@ The WeatherArchive frontend fulfills the user facing backlog from the Semester P
 | Product Owner / Lecturer | Semester project supervisor | Traceability to specification, measurable quality goals, presentable demo. |
 | End Users (Students, Public) | Via web UI | Straightforward search, meaningful media + metrics per city/time. |
 | Webcam Providers | API client backlog | Secure upload endpoints, API keys, predictable error codes. |
-| DevOps / Cloud Team | AWS contact | Clear S3/CloudFront deployment runbook, secrets separation, minimal manual steps. |
+| DevOps / Cloud Team | AWS contact | Clear S3 deployment runbook, secrets separation, minimal manual steps. |
 
 # 2. Architecture Constraints
 
-- **Technology**: SvelteKit + Vite, Tailwind CSS, Chart.js, TypeScript, AWS (Lambdas, Cloudfront, S3).
+- **Technology**: SvelteKit + Vite, Tailwind CSS, Chart.js, TypeScript, AWS (Lambda, API Gateway, S3, RDS, Redis).
 - **Tooling**: Node.js 20+, npm, ESLint/Prettier enforced by CI instructions.
-- **Deployment**: Static assets uploaded to an AWS S3 bucket with Cloudfront.
-- **Assets**: Weather images and videos are stored in their respective S3 buckets `lambda/store_image/` with naming convention `{cityslug}_{YYYY-MM-DD}_{HH}.jpg`.
+- **Deployment**: Static assets uploaded to an AWS S3 bucket with Static Website Hosting enabled. No CloudFront distribution is used.
+- **Assets**: Weather images and videos are stored in their respective S3 buckets with naming convention `{cityslug}_{YYYY-MM-DD}_{HH-MM}.jpg`.
 - **Security**: Backend Service is secured through API keys.
 
 # 3. Context and Scope
@@ -162,7 +162,7 @@ lambda/store_image/
 ## 7.1 Infrastructure Level 1
 - **Motivation**: Provide reproducible deployments for grading and AWS hosting.
 - **Quality Attributes**: Immutable artifacts, quick propagation through AWS edge caches, minimal ops steps.
-- **Mapping**: `npm run build` creates the static `build/` folder; the output is uploaded to an AWS S3 bucket (`weatherarchive`) and distributed via CloudFront. No container runtime is required.
+- **Mapping**: `npm run build` creates the static `build/` folder; the output is uploaded to an AWS S3 bucket (`weatherarchivebucket`) via `aws s3 sync build/ s3://weatherarchivebucket/ --delete`. The frontend is served via S3 Static Website Hosting. No CloudFront, no container runtime is required.
 
 ## 7.2 Infrastructure Level 2
 - **Local Dev**: `npm run dev` with Vites Hot Module Reload.
@@ -182,7 +182,7 @@ Backend APIs: API Gateway + Lambda + RDS/Redis
 Backend S3 Buckets:
 - weatherarchive-raw (raw uploaded images)
 - weatherarchive-edited (resized images from PictureService)
-- Future: video bucket for VideoService (Stories 26-30)
+- weatherarchive-videos (generated time-lapse videos from VideoGenerator)
 
 # 8. Cross-cutting Concepts
 

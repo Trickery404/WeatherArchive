@@ -46,7 +46,7 @@ function Generate-WeatherImage {
     $width = 1280
     $height = 720
 
-    # Select color based on hour
+    # Select color based on hour (keeps same background for all images within an hour)
     $colorIndex = $Hour % $colors.Count
     $bgColor = $colors[$colorIndex]
 
@@ -56,20 +56,15 @@ function Generate-WeatherImage {
 
     # Set high quality rendering
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAlias
+    $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
 
-    # Fill background
+    # Fill background with chosen color (no extra overlay)
     $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($bgColor.R, $bgColor.G, $bgColor.B))
     $graphics.FillRectangle($brush, 0, 0, $width, $height)
 
-    # Add semi-transparent overlay
-    $overlayBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(128, 0, 0, 0))
-    $graphics.FillRectangle($overlayBrush, 0, 0, $width, $height)
-
-    # Create fonts
-    $fontLarge = New-Object System.Drawing.Font("Arial", 72, [System.Drawing.FontStyle]::Bold)
-    $fontMedium = New-Object System.Drawing.Font("Arial", 48, [System.Drawing.FontStyle]::Regular)
-    $fontSmall = New-Object System.Drawing.Font("Arial", 36, [System.Drawing.FontStyle]::Regular)
+    # Create fonts (only date + time used)
+    $fontDate = New-Object System.Drawing.Font("Arial", 64, [System.Drawing.FontStyle]::Bold)
+    $fontTime = New-Object System.Drawing.Font("Arial", 96, [System.Drawing.FontStyle]::Bold)
 
     # White brush for text
     $whiteBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
@@ -79,34 +74,17 @@ function Generate-WeatherImage {
     $centerFormat.Alignment = [System.Drawing.StringAlignment]::Center
     $centerFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
 
-    # Draw city name (top)
-    $cityUpper = $City.ToUpper()
-    $graphics.DrawString($cityUpper, $fontMedium, $whiteBrush, ($width / 2), 80, $centerFormat)
+    # Draw date (center-top area)
+    $graphics.DrawString($Date, $fontDate, $whiteBrush, ($width / 2), [int]($height * 0.28), $centerFormat)
 
-    # Draw date (center-top)
-    $graphics.DrawString($Date, $fontLarge, $whiteBrush, ($width / 2), 200, $centerFormat)
-
-    # Draw time (center)
+    # Draw time (center, larger)
     $timeStr = "{0:D2}:{1:D2}" -f $Hour, $Minute
-    $graphics.DrawString($timeStr, $fontLarge, $whiteBrush, ($width / 2), 300, $centerFormat)
+    $graphics.DrawString($timeStr, $fontTime, $whiteBrush, ($width / 2), [int]($height * 0.44), $centerFormat)
 
-    # Draw weather data (center-bottom)
-    $weatherY = 450
-    $weatherSpacing = 80
-
-    $tempStr = "$Temperature°C"
-    $graphics.DrawString($tempStr, $fontMedium, $whiteBrush, ($width / 2), $weatherY, $centerFormat)
-
-    $humidStr = "$Humidity%"
-    $graphics.DrawString($humidStr, $fontMedium, $whiteBrush, ($width / 2), ($weatherY + $weatherSpacing), $centerFormat)
-
-    $pressureStr = "$Pressure hPa"
-    $graphics.DrawString($pressureStr, $fontMedium, $whiteBrush, ($width / 2), ($weatherY + $weatherSpacing * 2), $centerFormat)
-
-    # Save image
+    # Save image as JPEG with reasonable quality
     $encoder = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
     $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
-    $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 85)
+    $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 90)
 
     $bitmap.Save($OutputPath, $encoder, $encoderParams)
 
@@ -114,11 +92,9 @@ function Generate-WeatherImage {
     $graphics.Dispose()
     $bitmap.Dispose()
     $brush.Dispose()
-    $overlayBrush.Dispose()
     $whiteBrush.Dispose()
-    $fontLarge.Dispose()
-    $fontMedium.Dispose()
-    $fontSmall.Dispose()
+    $fontDate.Dispose()
+    $fontTime.Dispose()
 }
 
 $totalImages = 0
@@ -192,4 +168,3 @@ Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Run: upload-february-testdata-from-folder.cmd" -ForegroundColor Gray
 Write-Host "  2. Images will be uploaded to AWS" -ForegroundColor Gray
 Write-Host ""
-

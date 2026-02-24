@@ -4,7 +4,7 @@ REM Upload pre-generated test images
 REM Uploads images from testdata/ folder
 REM ========================================
 
-set API_URL=https://iuuqxsiemk.execute-api.us-east-1.amazonaws.com/dev/webcam-gateway
+set API_URL=https://j7gfdg5i29.execute-api.us-east-1.amazonaws.com/dev/webcam-gateway
 set API_KEY=Oucs1touWZ2NhGmtwAK3IuwpU4G4AlA8BxGKLyQ3
 set IMAGE_DIR=testdata
 
