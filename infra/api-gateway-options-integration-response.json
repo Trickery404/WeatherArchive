@@ -1,0 +1,12 @@
+{
+  "statusCode": "200",
+  "responseParameters": {
+    "method.response.header.Access-Control-Allow-Origin": "'*'",
+    "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'",
+    "method.response.header.Access-Control-Allow-Headers": "'Content-Type,x-api-key,cache-control'"
+  },
+  "responseTemplates": {
+    "application/json": ""
+  }
+}
+

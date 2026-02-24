@@ -19,7 +19,7 @@
 		"test:watch": "vitest",
 		"generate:testdata": "node docs/backend/testdata/generate-testdata.js",
 		"generate:images": "node scripts/generate-unique-images.js",
-		"deploy": "npm run build && aws s3 sync build/ s3://weatherarchivebucket/ --delete"
+		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File deploy-to-s3.ps1"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",

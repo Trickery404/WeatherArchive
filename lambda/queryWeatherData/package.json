@@ -1,0 +1,20 @@
+{
+    "name": "query-weather-data-lambda",
+    "version": "1.0.0",
+    "description": "AWS Lambda to query weather image data with Redis caching and signed S3 URLs",
+    "type": "module",
+    "main": "index.js",
+    "engines": {
+      "node": ">=18"
+    },
+    "scripts": {
+      "start": "node index.js",
+      "zip": "zip -r function.zip . -x '*.git*' -x 'node_modules/.cache/*'"
+    },
+    "dependencies": {
+      "@aws-sdk/client-s3": "^3.540.0",
+      "@aws-sdk/s3-request-presigner": "^3.540.0",
+      "ioredis": "^5.3.2",
+      "pg": "^8.11.3"
+    }
+  }
